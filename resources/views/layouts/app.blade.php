@@ -40,6 +40,8 @@
         <a class="nav-link {{ request()->routeIs('cart') ? 'active' : '' }}" href="{{ route('cart') }}">
             <x-icon name="cart" />Shopping list <span class="nav-count" data-cart-count>{{ $cartCount }}</span>
         </a>
+        <a class="nav-link {{ request()->routeIs('recipes.*') ? 'active' : '' }}" href="{{ route('recipes.index') }}"><x-icon name="book" />Recipes</a>
+        <a class="nav-link {{ request()->routeIs('chefs.*') ? 'active' : '' }}" href="{{ route('chefs.index') }}"><x-icon name="chef" />Chefs</a>
 
         <p class="nav-caption">{{ $onPantry ? 'MY PANTRY BY GROUP' : 'BROWSE GROUPS' }} <span>{{ $categories->count() }}</span></p>
         <a class="category-link {{ ! request('category') && request()->routeIs('catalog', 'pantry') ? 'selected' : '' }}" href="{{ route($browseRoute) }}">
@@ -97,14 +99,15 @@
     </main>
 </div>
 
-{{-- Phone navigation: the sidebar becomes a drawer opened from "Groups". --}}
+{{-- Phone navigation: the sidebar becomes a drawer opened from "Menu". --}}
 <nav class="tab-bar" aria-label="Quick navigation">
     <a class="{{ request()->routeIs('catalog') ? 'active' : '' }}" href="{{ route('catalog') }}"><x-icon name="grid" /><span>Discover</span></a>
     <a class="{{ $onPantry ? 'active' : '' }}" href="{{ route('pantry') }}"><x-icon name="box" /><span>Pantry</span></a>
     <a class="{{ request()->routeIs('cart') ? 'active' : '' }}" href="{{ route('cart') }}">
         <x-icon name="cart" /><span>List</span><b class="tab-badge" data-cart-count @if (! $cartCount) hidden @endif>{{ $cartCount }}</b>
     </a>
-    <button type="button" data-menu aria-expanded="false" aria-controls="sidebar"><x-icon name="menu" /><span>Groups</span></button>
+    <a class="{{ request()->routeIs('recipes.*', 'chefs.*') ? 'active' : '' }}" href="{{ route('recipes.index') }}"><x-icon name="book" /><span>Recipes</span></a>
+    <button type="button" data-menu aria-expanded="false" aria-controls="sidebar"><x-icon name="menu" /><span>Menu</span></button>
 </nav>
 
 <div class="toast-region" aria-live="polite">

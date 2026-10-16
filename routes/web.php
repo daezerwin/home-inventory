@@ -3,7 +3,10 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CartController;
+use App\Http\Controllers\ChefController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\RecipeController;
+use App\Http\Controllers\RecipeIngredientController;
 use App\Http\Middleware\Admin;
 use Illuminate\Support\Facades\Route;
 
@@ -31,6 +34,26 @@ Route::middleware('auth')->group(function () {
     Route::post('/shopping-list/product/{product}', [CartController::class, 'add'])->name('cart.add');
     Route::patch('/shopping-list/{item}', [CartController::class, 'update'])->name('cart.update');
     Route::delete('/shopping-list/{item}', [CartController::class, 'destroy'])->name('cart.remove');
+
+    // Recipes and where they come from
+    Route::get('/recipes', [RecipeController::class, 'index'])->name('recipes.index');
+    Route::get('/recipes/import', [RecipeController::class, 'importForm'])->name('recipes.import');
+    Route::post('/recipes/import', [RecipeController::class, 'import'])->middleware('throttle:20,1');
+    Route::get('/recipes/create', [RecipeController::class, 'create'])->name('recipes.create');
+    Route::post('/recipes', [RecipeController::class, 'store'])->name('recipes.store');
+    Route::get('/recipes/{recipe:slug}', [RecipeController::class, 'show'])->name('recipes.show');
+    Route::get('/recipes/{recipe:slug}/edit', [RecipeController::class, 'edit'])->name('recipes.edit');
+    Route::put('/recipes/{recipe:slug}', [RecipeController::class, 'update'])->name('recipes.update');
+    Route::delete('/recipes/{recipe:slug}', [RecipeController::class, 'destroy'])->name('recipes.destroy');
+    Route::post('/recipes/{recipe:slug}/stock', [RecipeController::class, 'stock'])->name('recipes.stock');
+    Route::patch('/recipe-ingredients/{ingredient}', [RecipeIngredientController::class, 'update'])->name('recipe-ingredients.update');
+    Route::get('/products/search', [RecipeIngredientController::class, 'search'])->name('products.search');
+
+    Route::get('/chefs', [ChefController::class, 'index'])->name('chefs.index');
+    Route::get('/chefs/{chef:slug}', [ChefController::class, 'show'])->name('chefs.show');
+    Route::get('/chefs/{chef:slug}/edit', [ChefController::class, 'edit'])->name('chefs.edit');
+    Route::put('/chefs/{chef:slug}', [ChefController::class, 'update'])->name('chefs.update');
+    Route::delete('/chefs/{chef:slug}', [ChefController::class, 'destroy'])->name('chefs.destroy');
 
     // Shared catalog management
     Route::prefix('admin')->middleware(Admin::class)->name('admin.')->group(function () {

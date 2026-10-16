@@ -225,3 +225,109 @@ if (statusPanel) {
   };
   if (Number($('[data-status="queued"]', statusPanel).textContent.replace(/,/g, '')) > 0) setTimeout(poll, 5000);
 }
+
+/* ---------- Parallax: hero photos drift at a third of the scroll speed ---------- */
+
+const parallaxLayers = $$('[data-parallax]');
+if (parallaxLayers.length && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  let queued = false;
+  const update = () => {
+    queued = false;
+    for (const layer of parallaxLayers) {
+      const box = layer.parentElement.getBoundingClientRect();
+      if (box.bottom < 0 || box.top > innerHeight) continue;
+      layer.style.transform = `translate3d(0, ${(-box.top * 0.35).toFixed(1)}px, 0)`;
+    }
+  };
+  const queue = () => { if (!queued) { queued = true; requestAnimationFrame(update); } };
+  addEventListener('scroll', queue, { passive: true });
+  addEventListener('resize', queue);
+  update();
+}
+
+/* ---------- Recipe ingredient picker ---------- */
+
+const picker = $('#ingredient-picker');
+if (picker) {
+  const query = $('[data-picker-query]', picker);
+  const results = $('[data-picker-results]', picker);
+  let searchTimer;
+  let lastSearch = 0;
+
+  const resultButton = product => {
+    const button = document.createElement('button');
+    button.className = 'picker-result';
+    button.name = 'product_id';
+    button.value = product.id;
+    const thumb = document.createElement('span');
+    thumb.className = 'thumb';
+    if (product.image) {
+      const img = document.createElement('img');
+      img.src = product.image;
+      img.alt = '';
+      thumb.append(img);
+    }
+    const text = document.createElement('span');
+    text.className = 'match-product';
+    const name = document.createElement('b');
+    name.textContent = product.name;
+    const details = document.createElement('small');
+    details.textContent = [product.size, product.category].filter(Boolean).join(' · ');
+    text.append(name, details);
+    const price = document.createElement('span');
+    price.className = 'price';
+    price.textContent = product.price;
+    button.append(thumb, text, price);
+    return button;
+  };
+
+  const search = async () => {
+    const term = query.value.trim();
+    const ticket = ++lastSearch;
+    if (!term) return results.replaceChildren();
+    results.setAttribute('aria-busy', 'true');
+    try {
+      const response = await fetch(`${picker.dataset.searchUrl}?q=${encodeURIComponent(term)}`, { headers: { Accept: 'application/json' } });
+      const products = await response.json();
+      if (ticket !== lastSearch) return; // a newer search is on its way
+      if (!products.length) {
+        const empty = document.createElement('p');
+        empty.className = 'picker-empty';
+        empty.textContent = 'Nothing in the catalog matches. Add it as a new item below.';
+        results.replaceChildren(empty);
+      } else {
+        results.replaceChildren(...products.map(resultButton));
+      }
+    } catch {
+      results.replaceChildren();
+      toast("Couldn't search the catalog. Check your connection.", true);
+    } finally {
+      results.removeAttribute('aria-busy');
+    }
+  };
+
+  query.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(search, 250); });
+  query.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); search(); } });
+
+  $$('[data-picker]').forEach(button => button.addEventListener('click', () => {
+    $$('[data-picker-form]', picker).forEach(form => form.action = button.dataset.pickerUrl);
+    $('[data-picker-name]', picker).textContent = button.dataset.name;
+    $('[data-picker-new-name]', picker).value = button.dataset.name;
+    const skipped = button.dataset.skipped === '1';
+    $('[data-picker-skip-action]', picker).value = skipped ? 'unskip' : 'skip';
+    $('[data-picker-skip-label]', picker).textContent = skipped ? "Don't skip it. I need to buy this." : 'Skip it. I always have this.';
+    query.value = button.dataset.name;
+    results.replaceChildren();
+    picker.showModal();
+    search();
+  }));
+}
+
+/* ---------- Slow forms: show that something is happening ---------- */
+
+$$('form[data-busy]').forEach(form => form.addEventListener('submit', () => {
+  const button = $('button', form);
+  if (!button) return;
+  button.disabled = true;
+  button.textContent = form.dataset.busy;
+}));

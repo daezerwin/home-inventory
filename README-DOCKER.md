@@ -90,7 +90,8 @@ alongside Baby Tracker (8070) and Task Tracker (8099). Point your reverse proxy
 | Variable                   | Default | Meaning                                                          |
 |----------------------------|---------|------------------------------------------------------------------|
 | `INVENTORY_IMAGE_HOSTS`    | empty   | Comma-separated hosts photos may come from. Empty = any public host. |
-| `INVENTORY_IMAGE_MAX_SIZE` | `600`   | Longest side of stored photos in px. `0` keeps the original files. |
+| `INVENTORY_IMAGE_MAX_SIZE` | `600`   | Longest side of stored product photos in px. `0` keeps the original files. |
+| `INVENTORY_RECIPE_IMAGE_MAX_SIZE` | `1600` | Longest side of stored recipe photos (they also fill the chef page heroes). |
 | `APP_TIMEZONE`             | `Asia/Manila` | Timezone for dates shown in the app.                       |
 
 ## 7. Backing up your data

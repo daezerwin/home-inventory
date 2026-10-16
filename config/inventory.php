@@ -18,4 +18,10 @@ return [
     */
     'image_max_size' => (int) env('INVENTORY_IMAGE_MAX_SIZE', 600),
 
+    /*
+    | Recipe photos also fill the full-width chef page heroes, so they are
+    | kept larger than product photos.
+    */
+    'recipe_image_max_size' => (int) env('INVENTORY_RECIPE_IMAGE_MAX_SIZE', 1600),
+
 ];

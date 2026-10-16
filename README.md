@@ -28,6 +28,16 @@ Built with Laravel 13 and SQLite, with no JavaScript framework and no build step
   shopping lists intact. Each product's `image` URL is downloaded in the
   background and stored locally (resized to 600px WebP by default), so the app
   never hotlinks the shop.
+- **Recipes**: paste a link from a recipe site and the recipe is imported:
+  title, photo (saved locally), times, servings, ingredients and steps. Each
+  ingredient is matched to a catalog product; tap **Change** to pick another,
+  add it as a new item, or skip it (water is skipped automatically).
+- **Stock ingredients**: one tap on a recipe adds missing ingredients to the
+  catalog and to My pantry, and puts everything you have none of on the
+  shopping list. Sites that block downloads can be added by hand.
+- **Chefs**: recipes are tagged with where they come from (the page's author,
+  or the site). Every chef has a page with a parallax photo hero and their
+  recipes, and there is a listing page of all chefs.
 - **Mobile friendly**: bottom tab bar, swipeable group chips, and a list that
   updates in place without reloading. It can be added to the home screen.
 - Maroon accent throughout.
@@ -110,7 +120,15 @@ Same setup as the other home apps: a multi-arch image is published to GitHub
 Container Registry on every `vX.Y.Z` tag, and Portainer pulls it. See
 [README-DOCKER.md](README-DOCKER.md).
 
-## Roadmap
+## How recipe import works
 
-- Recipes: pick a recipe and have its ingredients added to the shopping list
-  automatically.
+Recipe sites publish each recipe as [schema.org Recipe](https://schema.org/Recipe)
+data for search engines, so the importer reads that instead of the page layout
+(`app/Services/RecipeScraper.php`). Pages are fetched only from public
+addresses, with every redirect checked. Some large sites (Allrecipes, for
+example) refuse automated downloads; the import page then offers a pre-filled
+form to add the recipe by hand.
+
+Ingredients are matched to the catalog by whole words, preferring fresh
+produce and pantry groups over snacks and drinks, with a few Filipino/English
+synonyms such as *bay leaf ↔ laurel* (`app/Services/IngredientMatcher.php`).
