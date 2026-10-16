@@ -1,0 +1,42 @@
+# Pull-only deployment — no source checkout or Dockerfile needed.
+#
+# Paste this straight into Portainer's "Web editor" stack method, set the
+# environment variables below, and deploy. Portainer will `docker pull` the
+# prebuilt image from GitHub Container Registry instead of building it.
+#
+# Pin to a specific release instead of `latest` if you want predictable
+# upgrades, e.g. ghcr.io/daezerwin/home-inventory:v1.0.0
+
+services:
+  app:
+    image: ghcr.io/daezerwin/home-inventory:latest
+    restart: unless-stopped
+    # 8100, so it can run on the same host as Baby Tracker (8070) and
+    # Task Tracker (8099).
+    ports:
+      - "8100:80"
+    environment:
+      APP_NAME: "Home Pantry"
+      APP_ENV: production
+      APP_KEY: ${APP_KEY:?APP_KEY is required — see README-DOCKER.md}
+      APP_DEBUG: "false"
+      APP_URL: ${APP_URL:-http://localhost:8100}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Manila}
+      LOG_CHANNEL: stderr
+      LOG_LEVEL: warning
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /var/lib/home-inventory/database.sqlite
+      SESSION_DRIVER: database
+      SESSION_LIFETIME: "43200"
+      CACHE_STORE: database
+      QUEUE_CONNECTION: database
+      # Leave empty to download product photos from any public host.
+      INVENTORY_IMAGE_HOSTS: ${INVENTORY_IMAGE_HOSTS:-}
+      INVENTORY_IMAGE_MAX_SIZE: ${INVENTORY_IMAGE_MAX_SIZE:-600}
+    volumes:
+      - home_inventory_database:/var/lib/home-inventory
+      - home_inventory_storage:/var/www/html/storage
+
+volumes:
+  home_inventory_database:
+  home_inventory_storage:

@@ -1,0 +1,34 @@
+# Build-from-source deployment: `docker compose up -d --build`.
+# For pull-only deploys (Portainer web editor) use docker-compose.prod.yml.
+
+services:
+  app:
+    build: .
+    image: ghcr.io/daezerwin/home-inventory:local
+    restart: unless-stopped
+    ports:
+      - "8100:80"
+    environment:
+      APP_NAME: "Home Pantry"
+      APP_ENV: production
+      APP_KEY: ${APP_KEY:?APP_KEY is required — see README-DOCKER.md}
+      APP_DEBUG: "false"
+      APP_URL: ${APP_URL:-http://localhost:8100}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Manila}
+      LOG_CHANNEL: stderr
+      LOG_LEVEL: warning
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /var/lib/home-inventory/database.sqlite
+      SESSION_DRIVER: database
+      SESSION_LIFETIME: "43200"
+      CACHE_STORE: database
+      QUEUE_CONNECTION: database
+      INVENTORY_IMAGE_HOSTS: ${INVENTORY_IMAGE_HOSTS:-}
+      INVENTORY_IMAGE_MAX_SIZE: ${INVENTORY_IMAGE_MAX_SIZE:-600}
+    volumes:
+      - home_inventory_database:/var/lib/home-inventory
+      - home_inventory_storage:/var/www/html/storage
+
+volumes:
+  home_inventory_database:
+  home_inventory_storage:
