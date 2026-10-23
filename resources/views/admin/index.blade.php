@@ -11,7 +11,9 @@
     <a class="button primary" href="{{ route('admin.products.create') }}"><x-icon name="plus" />New product</a>
 </div>
 
-<div class="stats-grid" data-photo-status="{{ route('admin.status') }}">
+@php($photoPercent = $withPhotoUrl ? intdiv(100 * $localImages, $withPhotoUrl) : 100)
+<div data-photo-status="{{ route('admin.status') }}" data-run-url="{{ route('admin.images.run') }}">
+<div class="stats-grid">
     <div class="stat">
         <span class="stat-icon rose"><x-icon name="grid" /></span>
         <div><span>CATALOG PRODUCTS</span><strong data-status="total">{{ number_format($total) }}</strong></div>
@@ -24,6 +26,42 @@
         <span class="stat-icon amber"><x-icon name="upload" /></span>
         <div><span>QUEUED / FAILED</span><strong><span data-status="queued">{{ number_format($queued) }}</span> <small>/ <span data-status="failed">{{ number_format($failed) }}</span></small></strong></div>
     </div>
+</div>
+
+{{-- Photo downloads: live progress, and a way to download right now without the background worker. --}}
+<section class="photo-queue">
+    <div class="photo-queue-head">
+        <div>
+            <span class="eyebrow">PRODUCT PHOTOS</span>
+            <h2><span data-queue-percent>{{ $photoPercent }}%</span> downloaded</h2>
+            <p class="muted" data-queue-note>
+                @if ($queued)
+                    {{ number_format($queued) }} queued. The background worker downloads them, or tap Download now.
+                @elseif ($localImages < $withPhotoUrl)
+                    {{ number_format($withPhotoUrl - $localImages) }} photos aren't downloaded or queued. Queue them, then download.
+                @else
+                    Every product photo is on this server.
+                @endif
+            </p>
+        </div>
+        <div class="photo-queue-actions">
+            <form method="post" action="{{ route('admin.images.retry') }}" data-busy="Queuing…">
+                @csrf
+                <button class="button secondary compact"><x-icon name="upload" />Queue missing photos</button>
+            </form>
+            <form method="post" action="{{ route('admin.images.run') }}" data-run-queue>
+                @csrf
+                <button class="button primary compact" data-run-button @disabled(! $queued)><x-icon name="arrow" /><span>Download now</span></button>
+            </form>
+        </div>
+    </div>
+    <div class="queue-bar" role="progressbar" aria-label="Photos downloaded" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ $photoPercent }}"><span data-queue-bar style="width: {{ $photoPercent }}%"></span></div>
+    <p class="queue-meta">
+        <span><b data-status="localImages">{{ number_format($localImages) }}</b> of <span data-status="withPhotoUrl">{{ number_format($withPhotoUrl) }}</span> photos</span>
+        <span data-queue-rate hidden></span>
+        <span data-queue-eta hidden></span>
+    </p>
+</section>
 </div>
 
 <section class="import-panel">
@@ -46,10 +84,6 @@
         <h2>All products</h2>
         <span class="muted">{{ number_format($products->total()) }} shown</span>
     </div>
-    <form method="post" action="{{ route('admin.images.retry') }}">
-        @csrf
-        <button class="button secondary compact"><x-icon name="upload" />Retry missing photos</button>
-    </form>
 </div>
 
 <form method="get" class="filters">
@@ -93,7 +127,7 @@
                         <div class="product-cell">
                             <span class="thumb">
                                 @if ($product->image)
-                                    <img src="{{ $product->image }}" alt="" loading="lazy">
+                                    <img src="{{ $product->image }}" alt="" loading="lazy" decoding="async">
                                 @else
                                     <x-icon name="box" />
                                 @endif

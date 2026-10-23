@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Chefs')
 
-@section('content')
+@section('hero')
 <x-parallax-hero :image="$heroImage">
     <span class="eyebrow">WHERE YOUR RECIPES COME FROM</span>
     <h1>Chefs.</h1>
@@ -12,12 +12,17 @@
     </p>
     <a class="button hero-button" href="{{ route('recipes.import') }}"><x-icon name="plus" />Import a recipe</a>
 </x-parallax-hero>
+@endsection
 
+@section('content')
 <div class="chef-grid">
     @forelse ($chefs as $chef)
-        @php($cover = $chef->heroRecipe?->image ?? $chef->recipes->first()?->image)
+        @php($cover = $chef->hero_photo ?? $chef->heroRecipe?->image ?? $chef->recipes->first()?->image)
         <a class="chef-card" href="{{ route('chefs.show', $chef) }}">
-            <div class="chef-cover {{ $cover ? '' : 'no-image' }}" @if ($cover) style="background-image: url('{{ $cover }}')" @endif>
+            <div class="chef-cover {{ $cover ? '' : 'no-image' }}">
+                @if ($cover)
+                    <img src="{{ $cover }}" alt="" loading="lazy" decoding="async">
+                @endif
                 <span class="chef-avatar">{{ $chef->initials() }}</span>
             </div>
             <div class="chef-info">

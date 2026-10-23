@@ -2,20 +2,23 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class Recipe extends Model
 {
     protected $fillable = [
         'chef_id', 'user_id', 'title', 'description', 'source_url', 'image_url', 'image_path',
-        'servings', 'prep_minutes', 'cook_minutes', 'total_minutes', 'instructions',
+        'servings', 'prep_minutes', 'cook_minutes', 'total_minutes', 'instructions', 'draft',
     ];
 
     protected function casts(): array
     {
         return [
             'instructions' => 'array',
+            'draft' => 'boolean',
             'prep_minutes' => 'integer',
             'cook_minutes' => 'integer',
             'total_minutes' => 'integer',
@@ -24,6 +27,9 @@ class Recipe extends Model
 
     protected static function booted(): void
     {
+        // Imports being reviewed in the wizard show up nowhere else; see drafts().
+        static::addGlobalScope('published', fn (Builder $query) => $query->where('recipes.draft', false));
+
         static::creating(function (Recipe $recipe) {
             $recipe->slug ??= static::uniqueSlug($recipe->title);
         });
@@ -42,6 +48,23 @@ class Recipe extends Model
     public function ingredients()
     {
         return $this->hasMany(RecipeIngredient::class)->orderBy('position');
+    }
+
+    public function scopeDrafts(Builder $query): void
+    {
+        $query->withoutGlobalScope('published')->where('recipes.draft', true);
+    }
+
+    /** Deletes the recipe, and its photo unless another recipe (or draft) uses the same one. */
+    public function deleteWithPhoto(): void
+    {
+        $shared = static::withoutGlobalScope('published')->where('image_path', $this->image_path)->whereKeyNot($this->id)->exists();
+
+        if ($this->image_path && ! $shared) {
+            Storage::disk('public')->delete($this->image_path);
+        }
+
+        $this->delete();
     }
 
     public function getImageAttribute(): ?string
@@ -76,7 +99,7 @@ class Recipe extends Model
         $base = Str::limit(Str::slug($title), 80, '') ?: 'recipe';
         $slug = $base;
 
-        for ($i = 2; static::where('slug', $slug)->when($ignoreId, fn ($q) => $q->whereKeyNot($ignoreId))->exists(); $i++) {
+        for ($i = 2; static::withoutGlobalScope('published')->where('slug', $slug)->when($ignoreId, fn ($q) => $q->whereKeyNot($ignoreId))->exists(); $i++) {
             $slug = "{$base}-{$i}";
         }
 

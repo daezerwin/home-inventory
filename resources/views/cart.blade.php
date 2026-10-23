@@ -24,6 +24,7 @@
                 @endif
             </div>
         </div>
+        <p class="sync-note" data-sync-note role="status" hidden></p>
         <div class="shopping-progress"><span data-progress style="width: {{ $items->count() ? 100 * $checked / $items->count() : 0 }}%"></span></div>
 
         @forelse ($groups as $group => $groupItems)
@@ -38,7 +39,7 @@
                     </form>
                     <div class="shopping-photo">
                         @if ($item->product->image)
-                            <img src="{{ $item->product->image }}" alt="" loading="lazy">
+                            <img src="{{ $item->product->image }}" alt="" loading="lazy" decoding="async">
                         @else
                             <x-icon name="box" />
                         @endif

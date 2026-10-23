@@ -49,14 +49,20 @@ class ImageDownloader
                 throw new RuntimeException("Image server answered with HTTP {$response->status()}.");
             }
 
-            [$contents, $extension] = $this->prepare($temporary, $maxSize);
-            $path = $directory.'/'.hash('sha256', $url).'.'.$extension;
-            Storage::disk('public')->put($path, $contents);
-
-            return $path;
+            return $this->storeFile($temporary, $directory, $maxSize, hash('sha256', $url));
         } finally {
             @unlink($temporary);
         }
+    }
+
+    /** Scales and re-encodes a local image (a download or an upload) into public storage. */
+    public function storeFile(string $file, string $directory, int $maxSize, string $name): string
+    {
+        [$contents, $extension] = $this->prepare($file, $maxSize);
+        $path = $directory.'/'.$name.'.'.$extension;
+        Storage::disk('public')->put($path, $contents);
+
+        return $path;
     }
 
     /**

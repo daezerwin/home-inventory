@@ -10,7 +10,6 @@ use App\Services\RecipeImporter;
 use App\Services\RecipeImportException;
 use App\Services\RecipeStocker;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class RecipeController extends Controller
@@ -31,12 +30,16 @@ class RecipeController extends Controller
         return view('recipes.index', [
             'recipes' => $query->paginate(18)->withQueryString(),
             'chefs' => Chef::has('recipes')->orderBy('name')->get(),
+            'heroImage' => Recipe::whereNotNull('image_path')->latest('id')->first()?->image,
         ]);
     }
 
-    public function importForm()
+    public function importForm(Request $request)
     {
-        return view('recipes.import', ['chefs' => Chef::orderBy('name')->get()]);
+        return view('recipes.import', [
+            'chefs' => Chef::orderBy('name')->get(),
+            'drafts' => Recipe::drafts()->where('user_id', $request->user()->id)->withCount('ingredients')->latest('id')->get(),
+        ]);
     }
 
     public function import(Request $request, RecipeImporter $importer)
@@ -48,20 +51,23 @@ class RecipeController extends Controller
         ]);
 
         $url = trim($data['url']);
-        $existing = Recipe::whereIn('source_url', [$url, rtrim($url, '/'), rtrim($url, '/').'/'])->first();
+        $urls = [$url, rtrim($url, '/'), rtrim($url, '/').'/'];
 
-        if ($existing) {
+        if ($existing = Recipe::whereIn('source_url', $urls)->first()) {
             return redirect()->route('recipes.show', $existing)->with('success', 'You already have this recipe.');
         }
 
+        if ($draft = Recipe::drafts()->where('user_id', $request->user()->id)->whereIn('source_url', $urls)->first()) {
+            return redirect()->route('recipes.review', $draft)->with('success', 'You already started importing this one. Pick up where you left off.');
+        }
+
         try {
-            $recipe = $importer->import($url, $request->user(), $this->chosenChef($data));
+            $draft = $importer->import($url, $request->user(), $this->chosenChef($data), draft: true);
         } catch (RecipeImportException $e) {
             return back()->withInput()->withErrors(['url' => $e->getMessage()])->with('manual_url', $url);
         }
 
-        return redirect()->route('recipes.show', $recipe)
-            ->with('success', 'Recipe imported. Check the ingredient matches, then tap Stock ingredients.');
+        return redirect()->route('recipes.review', $draft);
     }
 
     public function create(Request $request)
@@ -130,11 +136,7 @@ class RecipeController extends Controller
     {
         abort_unless($this->canDelete($request, $recipe), 403);
 
-        if ($recipe->image_path && ! Recipe::where('image_path', $recipe->image_path)->whereKeyNot($recipe->id)->exists()) {
-            Storage::disk('public')->delete($recipe->image_path);
-        }
-
-        $recipe->delete();
+        $recipe->deleteWithPhoto();
 
         return redirect()->route('recipes.index')->with('success', "{$recipe->title} deleted.");
     }

@@ -26,9 +26,18 @@ class Chef extends Model
         return $this->belongsTo(Recipe::class, 'hero_recipe_id');
     }
 
-    /** Photo for the page hero: the chosen recipe, else the newest recipe with a photo. */
+    public function getHeroPhotoAttribute(): ?string
+    {
+        return $this->hero_image_path ? asset('storage/'.$this->hero_image_path) : null;
+    }
+
+    /** Photo for the page hero: an uploaded one, else the chosen recipe's, else the newest recipe with a photo. */
     public function heroImage(): ?string
     {
+        if ($this->hero_photo) {
+            return $this->hero_photo;
+        }
+
         $recipe = $this->heroRecipe?->image_path
             ? $this->heroRecipe
             : $this->recipes()->whereNotNull('image_path')->latest('id')->first();

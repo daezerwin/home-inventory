@@ -69,7 +69,7 @@
         <aside class="editor-side">
             <div class="product-photo">
                 @if ($recipe->image)
-                    <img src="{{ $recipe->image }}" alt="{{ $recipe->title }}">
+                    <img src="{{ $recipe->image }}" alt="{{ $recipe->title }}" loading="lazy" decoding="async">
                 @else
                     <div class="photo-placeholder"><x-icon name="book" /><span>No photo</span></div>
                 @endif

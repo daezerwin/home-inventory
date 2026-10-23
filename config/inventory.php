@@ -24,4 +24,9 @@ return [
     */
     'recipe_image_max_size' => (int) env('INVENTORY_RECIPE_IMAGE_MAX_SIZE', 1600),
 
+    /*
+    | Photos uploaded for a chef page hero, which spans the whole screen.
+    */
+    'hero_image_max_size' => (int) env('INVENTORY_HERO_IMAGE_MAX_SIZE', 2400),
+
 ];

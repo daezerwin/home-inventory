@@ -42,7 +42,7 @@
         <aside class="editor-side">
             <div class="product-photo">
                 @if ($product->image)
-                    <img src="{{ $product->image }}" alt="{{ $product->name }}">
+                    <img src="{{ $product->image }}" alt="{{ $product->name }}" loading="lazy" decoding="async">
                 @else
                     <div class="photo-placeholder"><x-icon name="box" /><span>{{ $product->image_url ? 'Photo downloading…' : 'No photo' }}</span></div>
                 @endif

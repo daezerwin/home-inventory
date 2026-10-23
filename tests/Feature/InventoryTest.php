@@ -264,6 +264,43 @@ class InventoryTest extends TestCase
         $this->getJson('/admin/status')->assertOk()->assertJson(['total' => 1, 'withPhotoUrl' => 1, 'localImages' => 0]);
     }
 
+    public function test_admin_can_queue_missing_photos_and_download_them_on_demand(): void
+    {
+        Storage::fake('public');
+        config(['queue.default' => 'database']);
+        $image = imagecreatetruecolor(800, 800);
+        ob_start();
+        imagepng($image);
+        $png = ob_get_clean();
+        // A fresh response per download: a shared one's body is used up by the first.
+        Http::fake(['*' => fn () => Http::response($png, 200, ['Content-Type' => 'image/png'])]);
+        $admin = User::factory()->create();
+        $admin->is_admin = true;
+        $admin->save();
+
+        // One photo never downloaded, one whose file has gone missing, one fine,
+        // and one whose path is stale but whose earlier download is still on disk.
+        $new = $this->product(['sku' => 'A', 'image_url' => 'https://93.184.216.34/a.png']);
+        $gone = $this->product(['sku' => 'B', 'image_url' => 'https://93.184.216.34/b.png', 'image_path' => 'products/gone.webp']);
+        Storage::disk('public')->put('products/kept.webp', 'x');
+        $this->product(['sku' => 'C', 'image_url' => 'https://93.184.216.34/c.png', 'image_path' => 'products/kept.webp']);
+        $onDisk = 'products/'.hash('sha256', 'https://93.184.216.34/d.png').'.webp';
+        Storage::disk('public')->put($onDisk, 'x');
+        $relinked = $this->product(['sku' => 'D', 'image_url' => 'https://93.184.216.34/d.png', 'image_path' => 'products/old-name.png']);
+
+        $this->actingAs($admin)->get('/admin')->assertOk()->assertSee('downloaded')->assertSee('Download now');
+        $this->post('/admin/images/retry')->assertSessionHas('success', '2 photos queued for download.');
+        $this->assertNull($gone->fresh()->image_path);
+        $this->assertSame($onDisk, $relinked->fresh()->image_path);
+        $this->assertDatabaseCount('jobs', 2);
+
+        $this->postJson('/admin/images/run')->assertOk()->assertJson(['downloaded' => 2, 'queued' => 0, 'localImages' => 4]);
+        Storage::disk('public')->assertExists($new->fresh()->image_path);
+        Storage::disk('public')->assertExists($gone->fresh()->image_path);
+
+        $this->actingAs(User::factory()->create())->postJson('/admin/images/run')->assertForbidden();
+    }
+
     public function test_product_deletion_cascades_stock_and_cart_records(): void
     {
         $user = User::factory()->create();

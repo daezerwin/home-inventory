@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\IngredientMatcher;
 use App\Services\RecipeScraper;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -101,7 +102,7 @@ class RecipeTest extends TestCase
         $this->assertNull($matcher->match('fresh turmeric root'));
     }
 
-    public function test_import_saves_recipe_chef_photo_and_matched_ingredients(): void
+    public function test_import_is_a_wizard_where_ingredients_are_picked_before_saving(): void
     {
         Storage::fake('public');
         $this->catalog();
@@ -111,20 +112,23 @@ class RecipeTest extends TestCase
         ]);
         $user = User::factory()->create();
 
+        // Step 1: the link is fetched into a draft, and step 2 opens.
         $response = $this->actingAs($user)->post('/recipes/import', ['url' => self::PAGE]);
 
-        $recipe = Recipe::with('ingredients.product', 'chef')->firstOrFail();
-        $response->assertRedirect(route('recipes.show', $recipe));
-        $this->assertSame('garlic-eggplant-adobo-rice', $recipe->slug);
-        $this->assertSame('Maria Santos', $recipe->chef->name);
-        $this->assertSame("Lola's Table", $recipe->chef->site_name);
-        $this->assertSame('https://93.184.216.34', $recipe->chef->website);
-        $this->assertSame($user->id, $recipe->user_id);
-        $this->assertStringEndsWith('.webp', $recipe->image_path);
-        Storage::disk('public')->assertExists($recipe->image_path);
-        $this->assertSame([1600, 800], array_slice(getimagesizefromstring(Storage::disk('public')->get($recipe->image_path)), 0, 2));
+        $draft = Recipe::drafts()->with('ingredients.product', 'chef')->firstOrFail();
+        $response->assertRedirect(route('recipes.review', $draft));
+        $this->assertTrue($draft->draft);
+        $this->assertSame('garlic-eggplant-adobo-rice', $draft->slug);
+        $this->assertSame('Maria Santos', $draft->chef->name);
+        $this->assertSame("Lola's Table", $draft->chef->site_name);
+        $this->assertSame('https://93.184.216.34', $draft->chef->website);
+        $this->assertSame($user->id, $draft->user_id);
+        $this->assertStringEndsWith('.webp', $draft->image_path);
+        Storage::disk('public')->assertExists($draft->image_path);
+        $this->assertSame([1600, 800], array_slice(getimagesizefromstring(Storage::disk('public')->get($draft->image_path)), 0, 2));
 
-        $matches = $recipe->ingredients->mapWithKeys(fn ($i) => [$i->name => $i->skip ? 'skip' : $i->product?->name])->all();
+        // Suggested matches are preselected; the person can change any of them.
+        $matches = $draft->ingredients->mapWithKeys(fn ($i) => [$i->name => $i->skip ? 'skip' : $i->product?->name])->all();
         $this->assertSame([
             'Chinese eggplant' => 'SS Eggplant',
             'Garlic' => 'Global Garlic',
@@ -134,10 +138,70 @@ class RecipeTest extends TestCase
             'Fresh turmeric root' => null,
         ], $matches);
 
-        // Importing the same link again opens the saved copy.
+        // A draft is nowhere else yet, and importing the link again resumes it.
+        $this->get('/recipes')->assertDontSee('Garlic Eggplant Adobo');
+        $this->get('/recipes/'.$draft->slug)->assertNotFound();
+        $this->get('/recipes/import')->assertSee('Pick up where you left off')->assertSee(route('recipes.review', $draft), false);
+        $this->post('/recipes/import', ['url' => self::PAGE])->assertRedirect(route('recipes.review', $draft));
+        $this->assertSame(1, Recipe::drafts()->count());
+
+        $this->get(route('recipes.review', $draft))->assertOk()
+            ->assertSee('Pick the ingredients.')
+            ->assertSee('5 cloves garlic, chopped')
+            ->assertSee('Global Garlic')
+            ->assertSee('Not picked yet');
+
+        // Turmeric isn't in the catalog: add it as a new item, then land back in the wizard on that ingredient.
+        $turmeric = $draft->ingredients->firstWhere('name', 'Fresh turmeric root');
+        $this->get(route('recipes.new-item', [$draft, $turmeric]))->assertOk()->assertSee('Add Fresh turmeric root.');
+        $this->post(route('recipes.new-item', [$draft, $turmeric]), ['name' => 'Turmeric root', 'category' => 'Fresh Produce', 'size' => '100g', 'price' => '35'])
+            ->assertRedirect(route('recipes.review', $draft).'#ingredient-'.$turmeric->id);
+        $product = Product::where('name', 'Turmeric root')->firstOrFail();
+        $this->assertSame(['Fresh Produce', '100g', '35.00'], [$product->category, $product->size, (string) $product->price]);
+        $this->assertSame($product->id, $turmeric->fresh()->product_id);
+        $this->post(route('recipes.new-item', [$draft, $turmeric]), ['name' => 'Turmeric', 'category' => 'Made up group'])->assertSessionHasErrors('category');
+
+        // Picking another suggestion.
+        $garlic = $draft->ingredients->firstWhere('name', 'Garlic');
+        $peeled = Product::create(['sku' => 'G2', 'category' => 'Fresh Produce', 'name' => 'Peeled Garlic', 'price' => 39]);
+        $this->from(route('recipes.review', $draft))
+            ->patch(route('recipe-ingredients.update', $garlic), ['action' => 'product', 'product_id' => $peeled->id])
+            ->assertRedirect(route('recipes.review', $draft));
+        $this->assertSame($peeled->id, $garlic->fresh()->product_id);
+
+        // Only the person importing (or an admin) can work on the draft.
+        $this->actingAs(User::factory()->create())->get(route('recipes.review', $draft))->assertForbidden();
+
+        // Step 3: save it, stocking the ingredients on the way.
+        $this->actingAs($user)->post(route('recipes.finish', $draft), ['stock' => '1'])->assertRedirect(route('recipes.show', $draft));
+        $recipe = Recipe::firstOrFail();
+        $this->assertFalse($recipe->draft);
+        $this->assertSame(5, Stock::where('user_id', $user->id)->count());
+        $this->assertTrue(CartItem::where('user_id', $user->id)->where('product_id', $product->id)->exists());
+        $this->get(route('recipes.review', $draft))->assertNotFound();
+
+        // Importing the same link again now opens the saved copy.
         $this->post('/recipes/import', ['url' => self::PAGE])->assertRedirect(route('recipes.show', $recipe));
         $this->assertDatabaseCount('recipes', 1);
         $this->get(route('recipes.show', $recipe))->assertOk()->assertSee('Maria Santos')->assertSee('SS Eggplant')->assertSee('Fry the eggplant until golden.');
+    }
+
+    public function test_discarding_an_import_removes_the_draft_its_photo_and_the_chef_it_created(): void
+    {
+        Storage::fake('public');
+        Http::fake([
+            '93.184.216.34/images/*' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
+            '93.184.216.34/*' => Http::response($this->fixture(), 200, ['Content-Type' => 'text/html']),
+        ]);
+        Chef::create(['name' => 'Kept Kitchen']);
+        $this->actingAs(User::factory()->create())->post('/recipes/import', ['url' => self::PAGE]);
+        $draft = Recipe::drafts()->firstOrFail();
+
+        $this->delete(route('recipes.discard', $draft))->assertRedirect(route('recipes.import'));
+
+        $this->assertSame(0, Recipe::drafts()->count());
+        Storage::disk('public')->assertMissing($draft->image_path);
+        $this->assertSame(['Kept Kitchen'], Chef::pluck('name')->all());
     }
 
     public function test_import_explains_blocked_and_unreadable_pages(): void
@@ -274,6 +338,58 @@ class RecipeTest extends TestCase
         $this->put(route('chefs.update', $chef), ['name' => 'Chef Vanjo', 'hero_recipe_id' => $recipe->id])->assertRedirect('/chefs/chef-vanjo');
         $this->assertSame($recipe->id, $chef->fresh()->hero_recipe_id);
         $this->put(route('chefs.update', $chef->fresh()), ['name' => 'Chef Vanjo', 'hero_recipe_id' => 999])->assertSessionHasErrors('hero_recipe_id');
+
+        // Landing views get the full-bleed hero; filtered views keep the plain heading.
+        $this->get('/recipes')->assertSee('class="has-hero hero-dark"', false);
+        $this->get('/recipes?q=adobo')->assertDontSee('has-hero', false);
+        $this->get('/')->assertSee('class="has-hero hero-light"', false)->assertSee('landing-hero', false);
+        $this->get('/?category=Bakery')->assertDontSee('landing-hero', false);
+        $this->get(route('chefs.show', $chef->fresh()))->assertSee('id="chef-editor"', false)->assertSee('No bio yet');
+    }
+
+    public function test_chef_page_photo_can_be_uploaded_kept_and_replaced_by_a_recipe_photo(): void
+    {
+        Storage::fake('public');
+        $chef = Chef::create(['name' => 'Vanjo Merano']);
+        $recipe = Recipe::create(['title' => 'Adobong Talong', 'chef_id' => $chef->id, 'image_path' => 'recipes/a.webp']);
+        $this->actingAs($this->admin());
+
+        $this->put(route('chefs.update', $chef), [
+            'name' => 'Vanjo Merano',
+            'bio' => "Home cook from Batangas.\n\nKnown for adobo.",
+            'hero_recipe_id' => '',
+            'hero_photo' => UploadedFile::fake()->image('kitchen.jpg', 3600, 2000),
+        ])->assertRedirect(route('chefs.show', $chef));
+
+        $chef->refresh();
+        $this->assertStringStartsWith('chefs/', $chef->hero_image_path);
+        $this->assertStringEndsWith('.webp', $chef->hero_image_path);
+        Storage::disk('public')->assertExists($chef->hero_image_path);
+        $this->assertSame(2400, getimagesizefromstring(Storage::disk('public')->get($chef->hero_image_path))[0]);
+        $this->assertSame($chef->hero_photo, $chef->heroImage());
+        $this->get(route('chefs.show', $chef))->assertSee($chef->hero_image_path, false)->assertSee('<p>Known for adobo.</p>', false);
+
+        // Saving again with "Your photo" keeps it.
+        $photo = $chef->hero_image_path;
+        $this->put(route('chefs.update', $chef), ['name' => 'Vanjo Merano', 'hero_recipe_id' => 'photo'])->assertSessionHasNoErrors();
+        $this->assertSame($photo, $chef->fresh()->hero_image_path);
+
+        // Choosing a recipe photo removes the uploaded one.
+        $this->put(route('chefs.update', $chef), ['name' => 'Vanjo Merano', 'hero_recipe_id' => $recipe->id])->assertSessionHasNoErrors();
+        $chef->refresh();
+        $this->assertNull($chef->hero_image_path);
+        $this->assertSame($recipe->id, $chef->hero_recipe_id);
+        Storage::disk('public')->assertMissing($photo);
+
+        // Not an image: refused.
+        $this->put(route('chefs.update', $chef), ['name' => 'Vanjo Merano', 'hero_photo' => UploadedFile::fake()->create('notes.pdf', 10, 'application/pdf')])
+            ->assertSessionHasErrors('hero_photo');
+
+        // Removing the chef removes their uploaded photo too.
+        $this->put(route('chefs.update', $chef), ['name' => 'Vanjo Merano', 'hero_photo' => UploadedFile::fake()->image('again.png', 800, 500)]);
+        $photo = $chef->fresh()->hero_image_path;
+        $this->delete(route('chefs.destroy', $chef))->assertRedirect('/chefs');
+        Storage::disk('public')->assertMissing($photo);
     }
 
     public function test_only_the_importer_or_an_admin_can_delete_recipes_and_admins_remove_chefs(): void

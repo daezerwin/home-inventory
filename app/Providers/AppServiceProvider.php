@@ -4,7 +4,9 @@ namespace App\Providers;
 
 use App\Models\CartItem;
 use App\Models\Product;
+use App\Models\Recipe;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -19,9 +21,13 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::defaultView('partials.pagination');
 
+        // Recipes still in the import wizard, which the usual {recipe} binding never finds.
+        // (Here rather than in routes/web.php, which route:cache skips.)
+        Route::bind('draft', fn (string $id) => Recipe::drafts()->whereKey($id)->firstOrFail());
+
         // Some pages list the groups too (chips, datalist), so the results are
         // kept on the request to avoid querying twice.
-        View::composer(['layouts.app', 'inventory', 'admin.form'], function ($view) {
+        View::composer(['layouts.app', 'inventory', 'admin.form', 'recipes.new-item'], function ($view) {
             $shared = request()->attributes;
 
             if (! $shared->has('categories')) {

@@ -7,6 +7,7 @@ use App\Http\Controllers\ChefController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\RecipeController;
 use App\Http\Controllers\RecipeIngredientController;
+use App\Http\Controllers\RecipeReviewController;
 use App\Http\Middleware\Admin;
 use Illuminate\Support\Facades\Route;
 
@@ -39,6 +40,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/recipes', [RecipeController::class, 'index'])->name('recipes.index');
     Route::get('/recipes/import', [RecipeController::class, 'importForm'])->name('recipes.import');
     Route::post('/recipes/import', [RecipeController::class, 'import'])->middleware('throttle:20,1');
+    Route::get('/recipes/import/{draft}', [RecipeReviewController::class, 'show'])->name('recipes.review');
+    Route::post('/recipes/import/{draft}', [RecipeReviewController::class, 'finish'])->name('recipes.finish');
+    Route::delete('/recipes/import/{draft}', [RecipeReviewController::class, 'discard'])->name('recipes.discard');
+    Route::get('/recipes/import/{draft}/ingredients/{ingredient}/new-item', [RecipeReviewController::class, 'newItem'])->name('recipes.new-item');
+    Route::post('/recipes/import/{draft}/ingredients/{ingredient}/new-item', [RecipeReviewController::class, 'storeNewItem']);
     Route::get('/recipes/create', [RecipeController::class, 'create'])->name('recipes.create');
     Route::post('/recipes', [RecipeController::class, 'store'])->name('recipes.store');
     Route::get('/recipes/{recipe:slug}', [RecipeController::class, 'show'])->name('recipes.show');
@@ -61,6 +67,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/status', [AdminController::class, 'status'])->name('status');
         Route::post('/import', [AdminController::class, 'import'])->name('import');
         Route::post('/images/retry', [AdminController::class, 'retryImages'])->name('images.retry');
+        Route::post('/images/run', [AdminController::class, 'runImages'])->name('images.run');
         Route::get('/products/create', [AdminController::class, 'create'])->name('products.create');
         Route::post('/products', [AdminController::class, 'store'])->name('products.store');
         Route::get('/products/{product}/edit', [AdminController::class, 'edit'])->name('products.edit');

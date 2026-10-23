@@ -20,9 +20,10 @@ class RecipeImporter
 
     /**
      * Imports the recipe at $url. The chef is the one given, or else the
-     * page's author (falling back to the site name), created if new.
+     * page's author (falling back to the site name), created if new. A draft
+     * stays hidden until its ingredients are reviewed in the import wizard.
      */
-    public function import(string $url, User $user, ?Chef $chef = null): Recipe
+    public function import(string $url, User $user, ?Chef $chef = null, bool $draft = false): Recipe
     {
         $data = $this->scraper->fetch($url);
 
@@ -31,7 +32,7 @@ class RecipeImporter
             'website' => $data['website'],
         ]);
 
-        $recipe = DB::transaction(function () use ($data, $user, $chef) {
+        $recipe = DB::transaction(function () use ($data, $user, $chef, $draft) {
             $recipe = Recipe::create([
                 ...collect($data)->only([
                     'title', 'description', 'source_url', 'image_url', 'servings',
@@ -39,6 +40,7 @@ class RecipeImporter
                 ])->all(),
                 'chef_id' => $chef?->id,
                 'user_id' => $user->id,
+                'draft' => $draft,
             ]);
 
             $this->syncIngredients($recipe, $data['ingredients']);

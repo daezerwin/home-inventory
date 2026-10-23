@@ -1,18 +1,40 @@
 @extends('layouts.app')
 @section('title', 'Recipes')
 
-@section('content')
-<div class="page-heading">
-    <div>
-        <div class="eyebrow">WHAT'S COOKING</div>
+{{-- The landing view gets the full-bleed hero; searches and chef filters keep results up top. --}}
+@php($landing = ! request()->hasAny(['q', 'chef']) && $recipes->onFirstPage())
+@if ($landing)
+    @section('hero')
+    <x-parallax-hero :image="$heroImage">
+        <span class="eyebrow">WHAT'S COOKING</span>
         <h1>Recipes.</h1>
         <p>Import a recipe from any link, then stock its ingredients in one tap.</p>
+        <p class="hero-stats">
+            <span><x-icon name="book" />{{ $recipes->total() }} {{ str('recipe')->plural($recipes->total()) }}</span>
+            <span><x-icon name="chef" />{{ $chefs->count() }} {{ str('chef')->plural($chefs->count()) }}</span>
+        </p>
+        <div class="hero-actions">
+            <a class="button hero-button" href="{{ route('recipes.import') }}"><x-icon name="plus" />Import from a link</a>
+            <a class="button hero-button ghost" href="{{ route('recipes.create') }}"><x-icon name="edit" />Write one</a>
+        </div>
+    </x-parallax-hero>
+    @endsection
+@endif
+
+@section('content')
+@unless ($landing)
+    <div class="page-heading">
+        <div>
+            <div class="eyebrow">WHAT'S COOKING</div>
+            <h1>Recipes.</h1>
+            <p>Import a recipe from any link, then stock its ingredients in one tap.</p>
+        </div>
+        <div class="heading-actions">
+            <a class="button secondary" href="{{ route('recipes.create') }}"><x-icon name="edit" />Write one</a>
+            <a class="button primary" href="{{ route('recipes.import') }}"><x-icon name="plus" />Import from a link</a>
+        </div>
     </div>
-    <div class="heading-actions">
-        <a class="button secondary" href="{{ route('recipes.create') }}"><x-icon name="edit" />Write one</a>
-        <a class="button primary" href="{{ route('recipes.import') }}"><x-icon name="plus" />Import from a link</a>
-    </div>
-</div>
+@endunless
 
 @if ($chefs->isNotEmpty())
     <nav class="filter-chips" aria-label="Chefs">

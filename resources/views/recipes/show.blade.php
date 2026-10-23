@@ -29,7 +29,7 @@
     <header class="recipe-hero">
         <div class="recipe-hero-photo">
             @if ($recipe->image)
-                <img src="{{ $recipe->image }}" alt="{{ $recipe->title }}">
+                <img src="{{ $recipe->image }}" alt="{{ $recipe->title }}" decoding="async" fetchpriority="high">
             @else
                 <div class="photo-placeholder"><x-icon name="book" /><span>Recipe</span></div>
             @endif
@@ -100,7 +100,7 @@
                                 @else
                                     <span class="thumb">
                                         @if ($product->image)
-                                            <img src="{{ $product->image }}" alt="" loading="lazy">
+                                            <img src="{{ $product->image }}" alt="" loading="lazy" decoding="async">
                                         @else
                                             <x-icon name="box" />
                                         @endif
@@ -155,36 +155,5 @@
     </div>
 </article>
 
-{{-- One picker shared by every "Change" button; app.js points its forms at the ingredient. --}}
-<dialog id="ingredient-picker" class="picker" aria-labelledby="picker-title" data-search-url="{{ route('products.search') }}">
-    <div class="dialog-heading">
-        <h2 id="picker-title">Buy <span data-picker-name></span> as…</h2>
-        <button type="button" class="icon-button" data-close-dialog aria-label="Close">×</button>
-    </div>
-    <label class="search-field">
-        <x-icon name="search" />
-        <input type="search" data-picker-query placeholder="Search the catalog" aria-label="Search the catalog" enterkeyhint="search">
-    </label>
-    <form method="post" data-picker-form>
-        @csrf
-        @method('PATCH')
-        <input type="hidden" name="action" value="product">
-        <div class="picker-results" data-picker-results aria-live="polite"></div>
-    </form>
-    <div class="picker-other">
-        <form method="post" data-picker-form class="picker-new">
-            @csrf
-            @method('PATCH')
-            <input type="hidden" name="action" value="new">
-            <label>Not in the catalog? Add it as<input name="name" data-picker-new-name maxlength="120" required></label>
-            <button class="button secondary compact"><x-icon name="plus" />New item</button>
-        </form>
-        <form method="post" data-picker-form>
-            @csrf
-            @method('PATCH')
-            <input type="hidden" name="action" value="skip" data-picker-skip-action>
-            <button class="text-danger" data-picker-skip-label>Skip it. I always have this.</button>
-        </form>
-    </div>
-</dialog>
+@include('partials.ingredient-picker')
 @endsection

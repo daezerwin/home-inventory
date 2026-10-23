@@ -1,10 +1,38 @@
 @extends('layouts.app')
 @section('title', $mode === 'pantry' ? 'My pantry' : 'Discover items')
 
-@section('content')
 @php($route = $mode === 'pantry' ? 'pantry' : 'catalog')
 @php($filtered = request()->hasAny(['q', 'category', 'status']))
+{{-- The catalog's landing view gets the full-bleed hero; filtered and later pages go straight to items. --}}
+@php($landing = $mode === 'catalog' && ! $filtered && $products->onFirstPage())
 
+@if ($landing)
+    @section('hero-tone', 'light')
+    @section('hero')
+    <section class="landing-hero">
+        <div class="landing-inner">
+            <div class="landing-copy">
+                <span class="eyebrow">A WELL-STOCKED HOME STARTS HERE</span>
+                <h1>Good things<br>for your home.</h1>
+                <p>Explore the catalog, pick your essentials, and keep life stocked. Add your favorites to My pantry and say goodbye to “do we still have this?”</p>
+                <a class="button primary" href="{{ route('pantry') }}">Go to my pantry<x-icon name="arrow" /></a>
+            </div>
+            <div class="pantry-art" aria-hidden="true">
+                <span class="art-circle"></span>
+                <div class="jar jar-one"><div class="jar-lid"></div><div class="jar-label">PANTRY<br><b>the everyday</b><small>GOOD THINGS INSIDE</small></div></div>
+                <div class="bottle"><div class="bottle-cap"></div><div class="bottle-label"><x-icon name="leaf" /><b>olive</b><small>EXTRA VIRGIN</small></div></div>
+                <div class="jar jar-two"><div class="jar-lid"></div><div class="jar-label">HOME<br><b>little essentials</b></div></div>
+                <span class="art-shelf"></span>
+                <span class="art-spark">✧</span>
+            </div>
+        </div>
+        <a class="hero-scroll" href="#main-content" aria-label="Scroll to the catalog"><x-icon name="arrow" /></a>
+    </section>
+    @endsection
+@endif
+
+@section('content')
+@unless ($landing)
 <div class="page-heading">
     <div>
         <div class="eyebrow">{{ $mode === 'pantry' ? 'YOUR EVERYDAY ESSENTIALS' : 'A WELL-STOCKED HOME STARTS HERE' }}</div>
@@ -20,6 +48,7 @@
         <a class="button primary" href="{{ route('pantry') }}">Go to my pantry<x-icon name="arrow" /></a>
     @endif
 </div>
+@endunless
 
 <div class="stats-grid">
     <a class="stat" href="{{ route($mode === 'pantry' ? 'catalog' : 'pantry') }}">
@@ -40,27 +69,8 @@
     </a>
 </div>
 
-@if ($mode === 'catalog' && ! $filtered && $products->onFirstPage())
-    <section class="welcome-banner">
-        <div class="banner-copy">
-            <span class="eyebrow">A LITTLE PLANNING, A HAPPIER HOME</span>
-            <h2>Your essentials.<br>Always within reach.</h2>
-            <p>Add your favorites to My pantry and say goodbye<br class="desktop-only"> to “do we still have this?”</p>
-            <a href="{{ route('pantry') }}">Make yourself at home <x-icon name="arrow" /></a>
-        </div>
-        <div class="pantry-art" aria-hidden="true">
-            <span class="art-circle"></span>
-            <div class="jar jar-one"><div class="jar-lid"></div><div class="jar-label">PANTRY<br><b>the everyday</b><small>GOOD THINGS INSIDE</small></div></div>
-            <div class="bottle"><div class="bottle-cap"></div><div class="bottle-label"><x-icon name="leaf" /><b>olive</b><small>EXTRA VIRGIN</small></div></div>
-            <div class="jar jar-two"><div class="jar-lid"></div><div class="jar-label">HOME<br><b>little essentials</b></div></div>
-            <span class="art-shelf"></span>
-            <span class="art-spark">✧</span>
-        </div>
-    </section>
-@endif
-
 <section class="catalog-section">
-    {{-- On phones the groups from the sidebar become a swipeable row. --}}
+    {{-- The sidebar's groups, kept on the page; a swipeable row on phones. --}}
     <nav class="chip-row" aria-label="Groups">
         <a class="chip {{ ! request('category') ? 'selected' : '' }}" href="{{ route($route, request()->except('category', 'page')) }}">All</a>
         @foreach ($categories as $category)

@@ -6,13 +6,43 @@ const peso = value => '₱' + value.toLocaleString('en-US', { minimumFractionDig
 
 /* ---------- Navigation drawer ---------- */
 
-function setMenu(open) {
+let menuOpener = null;
+function setMenu(open, opener) {
+  if (open === document.body.classList.contains('nav-open')) return;
   document.body.classList.toggle('nav-open', open);
   $$('[data-menu]').forEach(button => button.setAttribute('aria-expanded', String(open)));
+  // While open, the page behind is out of reach; focus moves into the drawer
+  // and returns to whichever button opened it.
+  $$('.mobile-header, .workspace, .tab-bar').forEach(el => el.inert = open);
+  if (open) {
+    menuOpener = opener;
+    $('#sidebar [data-close-menu]')?.focus();
+  } else {
+    menuOpener?.focus();
+  }
 }
-$$('[data-menu]').forEach(button => button.addEventListener('click', () => setMenu(!document.body.classList.contains('nav-open'))));
+$$('[data-menu]').forEach(button => button.addEventListener('click', () => setMenu(!document.body.classList.contains('nav-open'), button)));
 $$('[data-close-menu]').forEach(el => el.addEventListener('click', () => setMenu(false)));
 document.addEventListener('keydown', event => { if (event.key === 'Escape') setMenu(false); });
+
+/* ---------- Full-bleed hero: the phone header is see-through only at the top ---------- */
+
+const mobileHeader = $('.mobile-header');
+if ($('[data-hero]') && mobileHeader) {
+  const paintHeader = () => mobileHeader.classList.toggle('is-solid', scrollY > 40);
+  addEventListener('scroll', paintHeader, { passive: true });
+  paintHeader();
+}
+
+/* ---------- Lazy photos: fade in once they arrive ---------- */
+
+$$('img[loading="lazy"]').forEach(img => {
+  if (img.complete) return;
+  img.classList.add('lazy-fade', 'is-loading');
+  const shown = () => img.classList.remove('is-loading');
+  img.addEventListener('load', shown, { once: true });
+  img.addEventListener('error', shown, { once: true });
+});
 
 /* ---------- Group chips: bring the selected one into view ---------- */
 
@@ -21,7 +51,14 @@ if (chip) chip.parentElement.scrollLeft = chip.offsetLeft - chip.parentElement.c
 
 /* ---------- Dialogs and confirmations ---------- */
 
-$$('[data-dialog]').forEach(button => button.addEventListener('click', () => document.getElementById(button.dataset.dialog)?.showModal()));
+// A [data-dialog] link opens the dialog instead of its fallback page.
+$$('[data-dialog]').forEach(button => button.addEventListener('click', event => {
+  const dialog = document.getElementById(button.dataset.dialog);
+  if (!dialog) return;
+  event.preventDefault();
+  dialog.showModal();
+}));
+$$('dialog[data-open]').forEach(dialog => dialog.showModal());
 $$('[data-close-dialog]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
 $$('dialog').forEach(dialog => dialog.addEventListener('click', event => {
   const box = dialog.getBoundingClientRect();
@@ -103,7 +140,9 @@ const handlers = {
   },
 
   // Ticking an item is instant; the request catches up in the background.
+  // Ticking an item is instant; offline, the tick waits on this device (see "Offline ticks").
   'cart-check': {
+    offline: true,
     optimistic(form) {
       const input = $('input[name=checked]', form);
       const nowChecked = input.value === '1';
@@ -157,7 +196,7 @@ function refreshSummary() {
   const progress = $('[data-progress]');
   if (progress) progress.style.width = (rows.length ? 100 * checked / rows.length : 0) + '%';
   const checkout = $('[data-checkout]');
-  if (checkout) checkout.disabled = checked === 0;
+  if (checkout) checkout.disabled = checked === 0 || !navigator.onLine;
 }
 
 document.addEventListener('submit', async event => {
@@ -181,14 +220,107 @@ document.addEventListener('submit', async event => {
     if (response.status === 419 || response.status === 401) return location.reload();
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.message || 'Something went wrong. Please try again.');
+    if (handler.offline) dropFromOutbox(form.action);
     handler.done?.(form, data);
     setCartCount(data.cartCount);
     if (!handler.optimistic && !handler.quiet) toast(data.message);
   } catch (error) {
+    // fetch() rejects with a TypeError when the request never reached the server.
+    if (handler.offline && (error instanceof TypeError || !navigator.onLine)) return queueOffline(form, body);
     revert?.();
     toast(navigator.onLine ? error.message : "You're offline. That change wasn't saved.", true);
   }
 });
+
+/* ---------- Offline ticks: saved on this device, sent when the connection is back ---------- */
+
+const outboxKey = 'pantry:outbox';
+const readOutbox = () => { try { return JSON.parse(localStorage.getItem(outboxKey) || '{}'); } catch { return {}; } };
+const writeOutbox = box => { try { localStorage.setItem(outboxKey, JSON.stringify(box)); } catch {} };
+let warnedOffline = false;
+
+// Only an item's latest tick matters, so the outbox maps each item's URL to the state to send.
+function queueOffline(form, body) {
+  writeOutbox({ ...readOutbox(), [form.action]: body.get('checked') });
+  paintOutbox();
+  if (!warnedOffline) toast("You're offline. Ticks are saved on this phone and sync when you're back online.");
+  warnedOffline = true;
+}
+
+function dropFromOutbox(url) {
+  const box = readOutbox();
+  if (!(url in box)) return;
+  delete box[url];
+  writeOutbox(box);
+  paintOutbox();
+}
+
+// Marks rows still waiting to sync, and replays their ticks on a page that came from the offline copy.
+function paintOutbox() {
+  const box = readOutbox();
+  $$('form[data-async="cart-check"]').forEach(form => {
+    const row = form.closest('[data-row]');
+    const waiting = form.action in box;
+    row.classList.toggle('is-pending', waiting);
+    if (!waiting) return;
+    const checked = box[form.action] === '1';
+    row.classList.toggle('is-checked', checked);
+    $('button', form).setAttribute('aria-pressed', String(checked));
+    $('input[name=checked]', form).value = checked ? '0' : '1';
+  });
+  const waiting = Object.keys(box).length;
+  $$('[data-sync-note]').forEach(note => {
+    note.hidden = !waiting && navigator.onLine;
+    note.textContent = waiting
+      ? `${waiting} ${waiting === 1 ? 'tick' : 'ticks'} waiting to sync${navigator.onLine ? '…' : '. They go through when you\'re back online.'}`
+      : "You're offline. Ticks are saved on this phone until you're back.";
+  });
+  if ($('[data-row]')) refreshSummary();
+}
+
+async function flushOutbox() {
+  const box = readOutbox();
+  const urls = Object.keys(box);
+  if (!urls.length || !navigator.onLine) return paintOutbox();
+  let synced = 0;
+  for (const url of urls) {
+    const body = new FormData();
+    body.set('_token', $('meta[name=csrf-token]').content);
+    body.set('_method', 'PATCH');
+    body.set('checked', box[url]);
+    try {
+      const response = await fetch(url, { method: 'POST', body, headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
+      if (response.status === 419 || response.status === 401) {
+        toast('Sign in again to sync your ticks.', true);
+        break;
+      }
+      // Anything else is settled: saved, or the item was removed from the list meanwhile.
+      const current = readOutbox();
+      if (current[url] === box[url]) delete current[url];
+      writeOutbox(current);
+      if (response.ok) setCartCount((await response.json().catch(() => ({}))).cartCount);
+      synced++;
+    } catch {
+      break; // still offline
+    }
+  }
+  paintOutbox();
+  if (synced) toast(`Back online. ${synced} ${synced === 1 ? 'tick' : 'ticks'} synced.`);
+}
+
+addEventListener('online', flushOutbox);
+addEventListener('offline', paintOutbox);
+flushOutbox();
+
+// The offline copy of the shopping list (sw.js), for opening it in a store with no signal.
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+// Signing out clears this device's copy and any ticks still waiting.
+$$('form[data-logout]').forEach(form => form.addEventListener('submit', () => {
+  try { localStorage.removeItem(outboxKey); } catch {}
+  if ('caches' in window) caches.delete('pantry-offline');
+}));
 
 /* ---------- Shopping list: hide what's already in the cart ---------- */
 
@@ -214,16 +346,98 @@ if (list && hideButton) {
 
 const statusPanel = $('[data-photo-status]');
 if (statusPanel) {
-  const poll = async () => {
-    try {
-      const data = await (await fetch(statusPanel.dataset.photoStatus, { headers: { Accept: 'application/json' } })).json();
-      for (const [key, value] of Object.entries(data)) {
-        $$(`[data-status="${key}"]`, statusPanel).forEach(el => el.textContent = Number(value).toLocaleString('en-US'));
-      }
-      if (data.queued > 0) setTimeout(poll, 5000);
-    } catch {}
+  const number = value => Number(value).toLocaleString('en-US');
+  const runForm = $('[data-run-queue]', statusPanel);
+  const runButton = $('[data-run-button]', statusPanel);
+  const rate = $('[data-queue-rate]', statusPanel);
+  const eta = $('[data-queue-eta]', statusPanel);
+  const note = $('[data-queue-note]', statusPanel);
+  const samples = []; // [time, photos downloaded], for the speed
+  let running = false;
+  let polling = false;
+
+  const paint = data => {
+    for (const [key, value] of Object.entries(data)) {
+      $$(`[data-status="${key}"]`, statusPanel).forEach(el => el.textContent = number(value));
+    }
+    const percent = data.withPhotoUrl ? Math.floor(100 * data.localImages / data.withPhotoUrl) : 100;
+    $('[data-queue-bar]', statusPanel).style.width = percent + '%';
+    $('[data-queue-bar]', statusPanel).parentElement.setAttribute('aria-valuenow', percent);
+    $('[data-queue-percent]', statusPanel).textContent = percent + '%';
+
+    samples.push([Date.now(), data.localImages]);
+    while (samples.length > 2 && samples[0][0] < Date.now() - 120000) samples.shift();
+    const [[firstAt, firstDone], [lastAt, lastDone]] = [samples[0], samples[samples.length - 1]];
+    const perMinute = lastAt > firstAt ? (lastDone - firstDone) / ((lastAt - firstAt) / 60000) : 0;
+    rate.hidden = eta.hidden = !(perMinute > 0 && data.queued > 0);
+    if (!rate.hidden) {
+      const minutes = data.queued / perMinute;
+      rate.textContent = `About ${number(Math.round(perMinute))} a minute`;
+      eta.textContent = minutes < 1 ? 'Less than a minute left' : minutes < 90 ? `About ${Math.round(minutes)} min left` : `About ${Math.round(minutes / 60)} hr left`;
+    }
+
+    note.textContent = running ? `Downloading here… ${number(data.queued)} to go. Keep this page open, or tap Stop.`
+      : data.queued ? `${number(data.queued)} queued. The background worker downloads them, or tap Download now.`
+      : data.localImages < data.withPhotoUrl ? `${number(data.withPhotoUrl - data.localImages)} photos aren't downloaded or queued. Queue them, then download.`
+      : 'Every product photo is on this server.';
+    runButton.disabled = !running && !data.queued;
   };
-  if (Number($('[data-status="queued"]', statusPanel).textContent.replace(/,/g, '')) > 0) setTimeout(poll, 5000);
+
+  const status = async () => (await fetch(statusPanel.dataset.photoStatus, { headers: { Accept: 'application/json' } })).json();
+  const poll = async () => {
+    if (polling) return;
+    polling = true;
+    try {
+      const data = await status();
+      paint(data);
+      polling = false;
+      if (data.queued > 0 || running) setTimeout(poll, 5000);
+    } catch { polling = false; setTimeout(poll, 15000); }
+  };
+
+  // "Download now": each request downloads for about 20 seconds; keep asking until the queue is empty or Stop.
+  const setRunning = on => {
+    running = on;
+    $('span', runButton).textContent = on ? 'Stop' : 'Download now';
+    runButton.classList.toggle('secondary', on);
+    runButton.classList.toggle('primary', !on);
+  };
+  let loop = null;
+  runForm.addEventListener('submit', event => {
+    event.preventDefault();
+    setRunning(!running);
+    // Stop lets the batch in flight finish; tapping again before then just keeps that loop going.
+    if (running && !loop) {
+      loop = runQueue().finally(() => {
+        loop = null;
+        setRunning(false);
+        status().then(paint).catch(() => {});
+      });
+    }
+  });
+  const runQueue = async () => {
+    poll();
+    while (running) {
+      try {
+        const response = await fetch(statusPanel.dataset.runUrl, {
+          method: 'POST',
+          body: new FormData(runForm),
+          headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          credentials: 'same-origin',
+        });
+        if (response.status === 419 || response.status === 401) return location.reload();
+        if (!response.ok) throw new Error();
+        const data = await response.json();
+        paint(data);
+        if (!data.queued) break;
+      } catch {
+        toast(navigator.onLine ? 'Downloading stopped after an error. Tap Download now to try again.' : "You're offline. Downloading stopped.", true);
+        break;
+      }
+    }
+  };
+
+  if (Number($('[data-status="queued"]', statusPanel).textContent.replace(/,/g, '')) > 0) poll();
 }
 
 /* ---------- Parallax: hero photos drift at a third of the scroll speed ---------- */
@@ -245,6 +459,48 @@ if (parallaxLayers.length && !matchMedia('(prefers-reduced-motion: reduce)').mat
   update();
 }
 
+/* ---------- Recipe cards: rise into view, a few at a time ---------- */
+
+const recipeCards = $$('.recipe-card');
+if (recipeCards.length && 'IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  const reveal = new IntersectionObserver(entries => {
+    const arriving = entries.filter(entry => entry.isIntersecting);
+    arriving.forEach((entry, index) => {
+      entry.target.style.animationDelay = Math.min(index * 80, 400) + 'ms';
+      entry.target.classList.add('is-revealed');
+      reveal.unobserve(entry.target);
+    });
+  }, { rootMargin: '0px 0px -40px 0px' });
+  recipeCards.forEach(card => { card.classList.add('will-reveal'); reveal.observe(card); });
+}
+
+/* ---------- Chef page photo: preview an upload before it is saved ---------- */
+
+$$('[data-hero-picker]').forEach(picker => {
+  const upload = $('[data-hero-upload]', picker);
+  const tile = $('[data-hero-photo]', picker);
+  const preview = $('img', tile);
+  const restore = () => {
+    if (preview.dataset.saved) preview.src = preview.dataset.saved;
+    else preview.removeAttribute('src');
+    tile.hidden = !preview.dataset.saved;
+  };
+  upload.addEventListener('change', () => {
+    const file = upload.files[0];
+    if (!file) return restore();
+    preview.src = URL.createObjectURL(file);
+    tile.hidden = false;
+    $('input[type=radio]', tile).checked = true;
+  });
+  // Picking another photo drops a file chosen but not yet saved.
+  picker.addEventListener('change', event => {
+    if (event.target.type === 'radio' && event.target.value !== 'photo' && upload.value) {
+      upload.value = '';
+      restore();
+    }
+  });
+});
+
 /* ---------- Recipe ingredient picker ---------- */
 
 const picker = $('#ingredient-picker');
@@ -265,6 +521,8 @@ if (picker) {
       const img = document.createElement('img');
       img.src = product.image;
       img.alt = '';
+      img.loading = 'lazy';
+      img.decoding = 'async';
       thumb.append(img);
     }
     const text = document.createElement('span');
@@ -312,7 +570,10 @@ if (picker) {
   $$('[data-picker]').forEach(button => button.addEventListener('click', () => {
     $$('[data-picker-form]', picker).forEach(form => form.action = button.dataset.pickerUrl);
     $('[data-picker-name]', picker).textContent = button.dataset.name;
-    $('[data-picker-new-name]', picker).value = button.dataset.name;
+    const newName = $('[data-picker-new-name]', picker);
+    if (newName) newName.value = button.dataset.name;
+    const newLink = $('[data-picker-new-link]', picker);
+    if (newLink) newLink.href = button.dataset.newItemUrl;
     const skipped = button.dataset.skipped === '1';
     $('[data-picker-skip-action]', picker).value = skipped ? 'unskip' : 'skip';
     $('[data-picker-skip-label]', picker).textContent = skipped ? "Don't skip it. I need to buy this." : 'Skip it. I always have this.';

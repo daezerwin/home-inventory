@@ -14,13 +14,14 @@
     <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ filemtime(public_path('css/app.css')) }}">
     <script src="{{ asset('js/app.js') }}?v={{ filemtime(public_path('js/app.js')) }}" defer></script>
 </head>
-<body>
+{{-- A page with a full-bleed hero gets a see-through navbar on top of it. --}}
+<body @hasSection('hero') class="has-hero hero-@yield('hero-tone', 'dark')" @endif>
 @php($onPantry = request()->routeIs('pantry'))
 @php($browseRoute = $onPantry ? 'pantry' : 'catalog')
 
 <div class="mobile-header">
     <a class="brand" href="{{ route('catalog') }}">
-        <span class="brand-symbol"><x-icon name="home" /></span>home<span class="brand-light">pantry</span>
+        <span class="brand-symbol"><x-icon name="home" /></span><span>home<span class="brand-light">pantry</span></span>
     </a>
     <a class="top-cart" href="{{ route('cart') }}" aria-label="Shopping list, {{ $cartCount }} to buy">
         <x-icon name="cart" /><span data-cart-count>{{ $cartCount }}</span>
@@ -28,11 +29,14 @@
 </div>
 
 <div class="sidebar-overlay" data-close-menu></div>
-<aside class="sidebar" id="sidebar">
-    <a class="brand" href="{{ route('catalog') }}">
-        <span class="brand-symbol"><x-icon name="home" /></span>
-        <span>home<span class="brand-light">pantry</span><small>A LITTLE MORE ORGANIZED</small></span>
-    </a>
+<aside class="sidebar" id="sidebar" aria-label="Menu">
+    <div class="sidebar-head">
+        <a class="brand" href="{{ route('catalog') }}">
+            <span class="brand-symbol"><x-icon name="home" /></span>
+            <span>home<span class="brand-light">pantry</span><small>A LITTLE MORE ORGANIZED</small></span>
+        </a>
+        <button type="button" class="icon-button" data-close-menu aria-label="Close menu"><x-icon name="close" /></button>
+    </div>
 
     <nav aria-label="Main navigation">
         <a class="nav-link {{ request()->routeIs('catalog') ? 'active' : '' }}" href="{{ route('catalog') }}"><x-icon name="grid" />Discover items</a>
@@ -64,7 +68,7 @@
                 <strong>{{ auth()->user()->name }}</strong>
                 <small>{{ auth()->user()->is_admin ? 'Home administrator' : 'My personal pantry' }}</small>
             </div>
-            <form method="post" action="{{ route('logout') }}">
+            <form method="post" action="{{ route('logout') }}" data-logout>
                 @csrf
                 <button class="icon-button" title="Sign out" aria-label="Sign out"><x-icon name="logout" /></button>
             </form>
@@ -74,7 +78,13 @@
 
 <div class="workspace">
     <header class="topbar">
-        <div class="breadcrumb">My home <span>/</span> <strong>@yield('title', 'Discover items')</strong></div>
+        <div class="topbar-left">
+            <button type="button" class="icon-button menu-button" data-menu aria-expanded="false" aria-controls="sidebar" aria-label="Open menu"><x-icon name="menu" /></button>
+            <a class="brand" href="{{ route('catalog') }}">
+                <span class="brand-symbol"><x-icon name="home" /></span><span>home<span class="brand-light">pantry</span></span>
+            </a>
+            <div class="breadcrumb">My home <span>/</span> <strong>@yield('title', 'Discover items')</strong></div>
+        </div>
         <div class="topbar-right">
             <span class="today">{{ now()->format('l, M j') }}</span>
             <a class="top-cart" href="{{ route('cart') }}" aria-label="Shopping list, {{ $cartCount }} to buy">
@@ -82,6 +92,10 @@
             </a>
         </div>
     </header>
+
+    @hasSection('hero')
+        <div class="hero-slot" data-hero>@yield('hero')</div>
+    @endif
 
     <main id="main-content">
         @if ($errors->any())
@@ -99,7 +113,7 @@
     </main>
 </div>
 
-{{-- Phone navigation: the sidebar becomes a drawer opened from "Menu". --}}
+{{-- Phone navigation: "Menu" opens the sidebar drawer. --}}
 <nav class="tab-bar" aria-label="Quick navigation">
     <a class="{{ request()->routeIs('catalog') ? 'active' : '' }}" href="{{ route('catalog') }}"><x-icon name="grid" /><span>Discover</span></a>
     <a class="{{ $onPantry ? 'active' : '' }}" href="{{ route('pantry') }}"><x-icon name="box" /><span>Pantry</span></a>

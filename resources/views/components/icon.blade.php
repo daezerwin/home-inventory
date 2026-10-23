@@ -14,6 +14,7 @@
 @case('alert')<path d="m12 3 10 18H2ZM12 9v5m0 3v.1"/>@break
 @case('logout')<path d="M9 4H4v16h5m6-13 5 5-5 5m-7-5h12"/>@break
 @case('menu')<path d="M4 6h16M4 12h16M4 18h16"/>@break
+@case('close')<path d="M6 6l12 12M18 6 6 18"/>@break
 @case('list')<path d="M9 5h12M9 12h12M9 19h12M3 5h.1M3 12h.1M3 19h.1"/>@break
 @case('trash')<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>@break
 @case('book')<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2Z"/><path d="M4 19V5M8 7h7M8 11h5"/>@break
