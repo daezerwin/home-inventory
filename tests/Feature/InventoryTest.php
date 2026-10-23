@@ -72,11 +72,14 @@ class InventoryTest extends TestCase
     public function test_admin_can_create_update_and_delete_products(): void
     {
         Queue::fake();
+        // The photo site is down, so the download falls back to the background queue.
+        Http::fake(['*' => Http::response('', 503)]);
         $user = User::factory()->create();
         $user->is_admin = true;
         $user->save();
-        $data = ['sku' => 'P2', 'category' => 'Home Care', 'name' => 'Soap', 'image_url' => 'https://smmarkets.ph/soap.png', 'type' => 'Soap', 'size' => '100g', 'price' => 25];
-        $this->actingAs($user)->post('/products', $data)->assertRedirect('/?q=Soap');
+        $data = ['sku' => 'P2', 'category' => 'Home Care', 'name' => 'Soap', 'image_url' => 'https://93.184.216.34/soap.png', 'type' => 'Soap', 'size' => '100g', 'price' => 25];
+        $this->actingAs($user)->post('/products', $data)->assertRedirect('/?q=Soap')
+            ->assertSessionHas('success', "Soap added to the catalog. The photo couldn't be downloaded just now; it keeps trying in the background.");
         $product = Product::first();
         Queue::assertPushed(DownloadProductImage::class);
         $this->put('/products/'.$product->id, array_merge($data, ['name' => 'Hand soap', 'return' => url('/admin')]))->assertRedirect('/admin');
@@ -111,6 +114,49 @@ class InventoryTest extends TestCase
 
         $this->delete('/admin/products/'.$product->id)->assertForbidden();
         $this->get('/admin')->assertForbidden();
+    }
+
+    public function test_a_single_products_photo_downloads_right_away_and_on_demand(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        $image = imagecreatetruecolor(900, 900);
+        ob_start();
+        imagepng($image);
+        $png = ob_get_clean();
+        // An IP literal skips DNS, so the test runs offline; one link is broken.
+        Http::fake([
+            '93.184.216.34/broken.png' => Http::response('', 404),
+            '*' => fn () => Http::response($png, 200, ['Content-Type' => 'image/png']),
+        ]);
+        $user = User::factory()->create();
+
+        // Saved with its photo already on this server: no waiting on the queue.
+        $this->actingAs($user)->post('/products', ['name' => 'Oat milk', 'category' => 'Chilled & Dairy Items', 'price' => '120', 'image_url' => 'https://93.184.216.34/oat.png'])
+            ->assertSessionHas('success', 'Oat milk added to the catalog. Its photo is downloaded.');
+        $oat = Product::where('name', 'Oat milk')->firstOrFail();
+        Storage::disk('public')->assertExists($oat->image_path);
+        Queue::assertNothingPushed();
+
+        // A broken link: the product still saves, and the queue keeps trying.
+        $this->post('/products', ['name' => 'Soy milk', 'category' => 'Chilled & Dairy Items', 'price' => '99', 'image_url' => 'https://93.184.216.34/broken.png'])
+            ->assertSessionHas('success', "Soy milk added to the catalog. The photo couldn't be downloaded just now; it keeps trying in the background.");
+        $soy = Product::where('name', 'Soy milk')->firstOrFail();
+        $this->assertNull($soy->image_path);
+        Queue::assertPushed(DownloadProductImage::class, 1);
+
+        // "Download photo now" on the edit form says why it failed, or fetches it.
+        $this->get(route('products.edit', $soy))->assertSee('Download photo now');
+        $this->from(route('products.edit', $soy))->post(route('products.photo', $soy))
+            ->assertRedirect(route('products.edit', $soy))
+            ->assertSessionHasErrors(['image_url' => "The photo couldn't be downloaded: the site answered with error 404."]);
+        $soy->update(['image_url' => 'https://93.184.216.34/soy.png']);
+        $this->post(route('products.photo', $soy))->assertSessionHas('success', 'Photo of Soy milk downloaded.');
+        Storage::disk('public')->assertExists($soy->fresh()->image_path);
+        $this->get(route('products.edit', $soy))->assertSee('Download photo again');
+
+        $noLink = $this->product(['sku' => 'X']);
+        $this->post(route('products.photo', $noLink))->assertSessionHasErrors(['image_url' => 'Add a photo link first, then save.']);
     }
 
     public function test_tracking_and_adjusting_stock_is_personal_and_never_negative(): void

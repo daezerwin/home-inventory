@@ -12,7 +12,7 @@
 </div>
 
 <div class="editor-layout">
-    <form class="editor-panel stack-form" method="post" action="{{ $product->exists ? route('products.update', $product) : route('products.store') }}">
+    <form class="editor-panel stack-form" method="post" action="{{ $product->exists ? route('products.update', $product) : route('products.store') }}" data-busy="Saving…">
         @csrf
         <input type="hidden" name="return" value="{{ old('return', $return) }}">
         @if ($product->exists)
@@ -35,7 +35,7 @@
         </div>
         <label>Catalog price (₱)<input name="price" type="number" inputmode="decimal" min="0" max="9999999999.99" step="0.01" value="{{ old('price', $product->price ?? 0) }}" required></label>
         <label>Image URL<input name="image_url" type="url" value="{{ old('image_url', $product->image_url) }}" maxlength="2048" placeholder="https://…"></label>
-        <p class="muted">After saving, a local copy of the photo is downloaded in the background. Change the URL to replace it.</p>
+        <p class="muted">When you save, the photo is downloaded to this server right away (if the site is slow, it keeps trying in the background). Change the link to replace it.</p>
         <button class="button primary">{{ $product->exists ? 'Save changes' : 'Create product' }}</button>
     </form>
 
@@ -45,9 +45,17 @@
                 @if ($product->image)
                     <img src="{{ $product->image }}" alt="{{ $product->name }}" loading="lazy" decoding="async">
                 @else
-                    <div class="photo-placeholder"><x-icon name="box" /><span>{{ $product->image_url ? 'Photo downloading…' : 'No photo' }}</span></div>
+                    <div class="photo-placeholder"><x-icon name="box" /><span>{{ $product->image_url ? 'Not downloaded yet' : 'No photo' }}</span></div>
                 @endif
             </div>
+            @if ($product->image_url)
+                <form method="post" action="{{ route('products.photo', $product) }}" data-busy="Downloading…">
+                    @csrf
+                    <button class="button secondary"><x-icon name="upload" />{{ $product->image_path ? 'Download photo again' : 'Download photo now' }}</button>
+                </form>
+            @else
+                <p class="muted">Add a photo link and save to download one.</p>
+            @endif
             @if (auth()->user()->is_admin)
                 <form method="post" action="{{ route('admin.products.destroy', $product) }}" data-confirm="Delete {{ $product->name }}? This also removes it from everyone's pantry and shopping list.">
                     @csrf
