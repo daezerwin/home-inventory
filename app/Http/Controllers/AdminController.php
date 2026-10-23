@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\DownloadProductImage;
+use App\Models\CartItem;
 use App\Models\Product;
+use App\Models\RecipeIngredient;
+use App\Models\Stock;
 use App\Services\CsvImporter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -35,6 +38,8 @@ class AdminController extends Controller
         return view('admin.index', [
             'products' => $query->orderByDesc('id')->paginate(30)->withQueryString(),
             'categoryOptions' => Product::distinct()->orderBy('category')->pluck('category'),
+            'pantryCount' => Stock::count(),
+            'listCount' => CartItem::count(),
             ...$this->photoStatus(),
         ]);
     }
@@ -157,6 +162,45 @@ class AdminController extends Controller
         }
 
         return back()->with('success', number_format($downloaded).' photos downloaded. '.($status['queued'] ? number_format($status['queued']).' still queued.' : 'The queue is empty.'));
+    }
+
+    /** Empties every pantry, and every shopping list too when asked. Products and recipes stay. */
+    public function resetPantries(Request $request)
+    {
+        $this->confirmReset($request);
+
+        $pantry = Stock::query()->delete();
+        $lists = $request->boolean('with_lists') ? CartItem::query()->delete() : 0;
+
+        return back()->with('success', number_format($pantry).' pantry items deleted'.($lists ? ', and '.number_format($lists).' shopping list items.' : '.'));
+    }
+
+    /**
+     * Deletes the whole catalog and its photos, and with it every pantry and
+     * shopping list. Recipes stay; their ingredients are picked again later.
+     */
+    public function resetCatalog(Request $request)
+    {
+        $this->confirmReset($request);
+        $count = Product::count();
+
+        DB::table('jobs')->where('payload', 'like', '%DownloadProductImage%')->delete();
+        DB::table('failed_jobs')->where('payload', 'like', '%DownloadProductImage%')->delete();
+        DB::transaction(function () {
+            Stock::query()->delete();
+            CartItem::query()->delete();
+            RecipeIngredient::whereNotNull('product_id')->update(['product_id' => null]);
+            Product::query()->delete();
+        });
+        Storage::disk('public')->deleteDirectory('products');
+
+        return back()->with('success', number_format($count).' products deleted, with every pantry and shopping list. Import a CSV to fill the catalog again.');
+    }
+
+    /** Resets are typed out ("RESET"), so a stray tap or a resent form can't wipe everything. */
+    private function confirmReset(Request $request): void
+    {
+        $request->validate(['confirmation' => 'required|in:RESET'], ['confirmation.*' => 'Type RESET to confirm.']);
     }
 
     private function validated(Request $request, ?Product $product = null): array

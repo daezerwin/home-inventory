@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\DownloadProductImage;
 use App\Models\CartItem;
 use App\Models\Product;
+use App\Models\Recipe;
 use App\Models\Stock;
 use App\Models\User;
 use App\Services\CsvImporter;
@@ -299,6 +300,64 @@ class InventoryTest extends TestCase
         Storage::disk('public')->assertExists($gone->fresh()->image_path);
 
         $this->actingAs(User::factory()->create())->postJson('/admin/images/run')->assertForbidden();
+    }
+
+    public function test_my_pantry_lists_only_the_groups_in_my_pantry(): void
+    {
+        $user = User::factory()->create();
+        $rice = $this->product(['sku' => 'A', 'category' => 'Pantry']);
+        $this->product(['sku' => 'B', 'category' => 'Pantry', 'name' => 'Brown rice']);
+        $this->product(['sku' => 'C', 'category' => 'Snacks', 'name' => 'Chips']);
+        Stock::create(['user_id' => $user->id, 'product_id' => $rice->id, 'quantity' => 1]);
+        // Someone else's pantry doesn't count.
+        Stock::create(['user_id' => User::factory()->create()->id, 'product_id' => Product::where('sku', 'C')->value('id'), 'quantity' => 1]);
+
+        $this->actingAs($user)->get('/pantry')->assertOk()
+            ->assertViewHas('categories', fn ($groups) => $groups->pluck('total', 'category')->all() === ['Pantry' => 1]);
+        $this->get('/')->assertViewHas('categories', fn ($groups) => $groups->pluck('total', 'category')->all() === ['Pantry' => 2, 'Snacks' => 1]);
+    }
+
+    public function test_admin_can_reset_every_pantry_and_the_whole_catalog(): void
+    {
+        Storage::fake('public');
+        config(['queue.default' => 'database']);
+        $user = User::factory()->create();
+        $admin = User::factory()->create();
+        $admin->is_admin = true;
+        $admin->save();
+        Storage::disk('public')->put('products/rice.webp', 'x');
+        Storage::disk('public')->put('recipes/adobo.webp', 'x');
+        $product = $this->product(['image_url' => 'https://93.184.216.34/rice.png', 'image_path' => 'products/rice.webp']);
+        foreach ([$user, $admin] as $person) {
+            Stock::create(['user_id' => $person->id, 'product_id' => $product->id, 'quantity' => 2]);
+            CartItem::create(['user_id' => $person->id, 'product_id' => $product->id]);
+        }
+        $recipe = Recipe::create(['title' => 'Adobo', 'image_path' => 'recipes/adobo.webp']);
+        $ingredient = $recipe->ingredients()->create(['line' => '1 cup rice', 'name' => 'Rice', 'product_id' => $product->id]);
+        DownloadProductImage::dispatch($product->id);
+
+        $this->actingAs($user)->post('/admin/reset/pantries', ['confirmation' => 'RESET'])->assertForbidden();
+        $this->actingAs($admin)->get('/admin')->assertSee('Reset pantries')->assertSee('Reset catalog');
+
+        // The word has to be typed.
+        $this->post('/admin/reset/pantries', ['confirmation' => 'reset'])->assertSessionHasErrors(['confirmation' => 'Type RESET to confirm.']);
+        $this->assertDatabaseCount('stocks', 2);
+
+        $this->post('/admin/reset/pantries', ['confirmation' => 'RESET'])->assertSessionHas('success', '2 pantry items deleted.');
+        $this->assertDatabaseCount('stocks', 0);
+        $this->assertDatabaseCount('cart_items', 2);
+        $this->post('/admin/reset/pantries', ['confirmation' => 'RESET', 'with_lists' => '1'])->assertSessionHas('success', '0 pantry items deleted, and 2 shopping list items.');
+        $this->assertDatabaseCount('cart_items', 0);
+
+        $this->post('/admin/reset/catalog')->assertSessionHasErrors('confirmation');
+        $this->post('/admin/reset/catalog', ['confirmation' => 'RESET'])->assertSessionHasNoErrors();
+        $this->assertDatabaseCount('products', 0);
+        $this->assertDatabaseCount('jobs', 0);
+        Storage::disk('public')->assertMissing('products/rice.webp');
+        // Recipes stay, with their photo; the ingredient waits to be picked again.
+        $this->assertModelExists($recipe);
+        Storage::disk('public')->assertExists('recipes/adobo.webp');
+        $this->assertNull($ingredient->fresh()->product_id);
     }
 
     public function test_product_deletion_cascades_stock_and_cart_records(): void

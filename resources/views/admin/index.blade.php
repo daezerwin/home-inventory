@@ -158,4 +158,30 @@
 </div>
 
 {{ $products->links() }}
+
+{{-- Starting over. Both affect everyone and are typed out ("RESET") in the confirm. --}}
+<section class="reset-panel" aria-labelledby="reset-title">
+    <div class="reset-intro">
+        <span class="eyebrow">START FRESH</span>
+        <h2 id="reset-title">Reset</h2>
+        <p class="muted">For starting over, say before importing a new catalog CSV. Both affect everyone in the household and can't be undone.</p>
+    </div>
+    <div class="reset-actions">
+        <form class="reset-card" method="post" action="{{ route('admin.reset.pantries') }}" data-confirm="Reset every pantry? Pantry stock is deleted for everyone. Products and recipes stay." data-confirm-type="RESET" data-confirm-button="Reset pantries">
+            @csrf
+            <input type="hidden" name="confirmation" value="">
+            <h3>Pantries</h3>
+            <p>Empties everyone's pantry: {{ number_format($pantryCount) }} {{ str('item')->plural($pantryCount) }} now.</p>
+            <label class="checkbox-label"><input type="checkbox" name="with_lists" value="1">Also empty every shopping list ({{ number_format($listCount) }} {{ str('item')->plural($listCount) }})</label>
+            <button class="button secondary danger" @disabled(! $pantryCount && ! $listCount)><x-icon name="trash" />Reset pantries</button>
+        </form>
+        <form class="reset-card" method="post" action="{{ route('admin.reset.catalog') }}" data-confirm="Reset the whole catalog? All {{ number_format($total) }} products and their photos are deleted, and with them every pantry and shopping list. Recipes stay, but their ingredients need picking again." data-confirm-type="RESET" data-confirm-button="Reset catalog">
+            @csrf
+            <input type="hidden" name="confirmation" value="">
+            <h3>Catalog</h3>
+            <p>Deletes all {{ number_format($total) }} products and their photos, with every pantry and shopping list. Recipes stay; their ingredients need picking again.</p>
+            <button class="button secondary danger" @disabled(! $total)><x-icon name="trash" />Reset catalog</button>
+        </form>
+    </div>
+</section>
 @endsection

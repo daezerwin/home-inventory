@@ -68,6 +68,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/import', [AdminController::class, 'import'])->name('import');
         Route::post('/images/retry', [AdminController::class, 'retryImages'])->name('images.retry');
         Route::post('/images/run', [AdminController::class, 'runImages'])->name('images.run');
+        Route::post('/reset/pantries', [AdminController::class, 'resetPantries'])->name('reset.pantries');
+        Route::post('/reset/catalog', [AdminController::class, 'resetCatalog'])->name('reset.catalog');
         Route::get('/products/create', [AdminController::class, 'create'])->name('products.create');
         Route::post('/products', [AdminController::class, 'store'])->name('products.store');
         Route::get('/products/{product}/edit', [AdminController::class, 'edit'])->name('products.edit');

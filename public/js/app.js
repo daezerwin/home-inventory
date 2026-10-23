@@ -95,7 +95,13 @@ $$('[data-confirm]').forEach(form => form.addEventListener('submit', event => {
     form.dataset.confirmed = '1';
     submitter ? form.requestSubmit(submitter) : form.requestSubmit();
   };
-  if (!swal) return void (confirm(form.dataset.confirm) && go());
+  // data-confirm-type="RESET": the word must be typed, and goes to the server as "confirmation".
+  const word = form.dataset.confirmType;
+  const typed = () => { if (word) form.elements.confirmation.value = word; go(); };
+  if (!swal) {
+    if (word) return void (prompt(`${form.dataset.confirm}\n\nType ${word} to confirm.`)?.trim() === word && typed());
+    return void (confirm(form.dataset.confirm) && go());
+  }
   const [title, ...detail] = form.dataset.confirm.split(/(?<=\?)\s+/);
   swal.fire({
     target: swalTarget(),
@@ -108,9 +114,16 @@ $$('[data-confirm]').forEach(form => form.addEventListener('submit', event => {
     showDenyButton: Boolean(form.dataset.confirmDeny),
     denyButtonText: form.dataset.confirmDeny,
     cancelButtonText: 'Cancel',
-    focusCancel: true,
+    focusCancel: !word,
+    ...(word && {
+      input: 'text',
+      inputLabel: `Type ${word} to confirm`,
+      inputAttributes: { autocapitalize: 'characters', autocomplete: 'off', spellcheck: 'false' },
+      inputValidator: value => value.trim() === word ? null : `Type ${word} exactly to go ahead.`,
+    }),
   }).then(result => {
     if (form.dataset.confirmDenyField) form.elements[form.dataset.confirmDenyField].value = result.isDenied ? '1' : '0';
+    if (result.isConfirmed && word) return typed();
     if (result.isConfirmed || result.isDenied) go();
   });
 }));

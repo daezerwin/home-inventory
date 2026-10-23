@@ -1333,6 +1333,88 @@ td small {
 .queue-meta b {
     color: var(--ink);
 }
+/* ---------- Admin: reset ---------- */
+.reset-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+    gap: 24px;
+    margin-top: 40px;
+    padding: 24px 25px;
+    border: 1px solid #efd5dc;
+    border-radius: 12px;
+    background: #fdf8f9;
+}
+.reset-intro h2 {
+    font-size: 20px;
+}
+.reset-intro .muted {
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.7;
+}
+.reset-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+.reset-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 18px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+}
+.reset-card h3 {
+    font-size: 15px;
+}
+.reset-card p {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #7f7277;
+}
+.reset-card .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #5f5459;
+}
+.reset-card .checkbox-label input {
+    accent-color: var(--maroon);
+}
+.reset-card .button {
+    margin-top: auto;
+}
+.swal-pantry .swal2-input-label {
+    margin-top: 16px;
+    font-size: 13px;
+    color: #5f5459;
+}
+.swal-pantry .swal2-input {
+    width: calc(100% - 8px);
+    max-width: 260px;
+    height: 44px;
+    margin: 8px auto 0;
+    border: 1px solid #e4dade;
+    border-radius: 7px;
+    box-shadow: none;
+    font: 600 15px "DM Sans", sans-serif;
+    letter-spacing: 2px;
+    text-align: center;
+}
+.swal-pantry .swal2-input:focus {
+    border-color: #c79aa8;
+    box-shadow: 0 0 0 3px #f3e2e7;
+}
+.swal-pantry .swal2-validation-message {
+    margin: 12px 0 0;
+    background: #fbf1f3;
+    color: var(--maroon);
+    font-size: 12px;
+}
 .import-panel {
     padding: 25px;
     background: #f4ece7;
@@ -4152,6 +4234,13 @@ dialog.sheet[open] {
     }
     .photo-queue-head {
         flex-direction: column;
+    }
+    .reset-panel,
+    .reset-actions {
+        grid-template-columns: 1fr;
+    }
+    .reset-panel {
+        padding: 18px 16px;
     }
     .photo-queue {
         padding: 18px 16px;

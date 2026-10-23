@@ -26,12 +26,14 @@ class AppServiceProvider extends ServiceProvider
         Route::bind('draft', fn (string $id) => Recipe::drafts()->whereKey($id)->firstOrFail());
 
         // Some pages list the groups too (chips, datalist), so the results are
-        // kept on the request to avoid querying twice.
+        // kept on the request to avoid querying twice. On My pantry they are the
+        // groups in that person's pantry, counted there.
         View::composer(['layouts.app', 'inventory', 'admin.form', 'recipes.new-item'], function ($view) {
             $shared = request()->attributes;
 
             if (! $shared->has('categories')) {
                 $shared->set('categories', Product::selectRaw('category, COUNT(*) as total')
+                    ->when(request()->routeIs('pantry') && auth()->check(), fn ($query) => $query->whereHas('stocks', fn ($stock) => $stock->where('user_id', auth()->id())))
                     ->groupBy('category')
                     ->orderBy('category')
                     ->get());
