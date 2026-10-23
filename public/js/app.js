@@ -16,6 +16,7 @@ const swal = window.Swal?.mixin({
     popup: 'swal-pantry',
     actions: 'swal-pantry-actions',
     confirmButton: 'button primary',
+    denyButton: 'button secondary danger',
     cancelButton: 'button secondary',
   },
 });
@@ -103,9 +104,15 @@ $$('[data-confirm]').forEach(form => form.addEventListener('submit', event => {
     text: detail.join(' '),
     showCancelButton: true,
     confirmButtonText: form.dataset.confirmButton || submitter?.textContent.trim() || 'Continue',
+    // data-confirm-deny adds a second, bigger choice that sets a hidden field ("…and their recipes").
+    showDenyButton: Boolean(form.dataset.confirmDeny),
+    denyButtonText: form.dataset.confirmDeny,
     cancelButtonText: 'Cancel',
     focusCancel: true,
-  }).then(result => result.isConfirmed && go());
+  }).then(result => {
+    if (form.dataset.confirmDenyField) form.elements[form.dataset.confirmDenyField].value = result.isDenied ? '1' : '0';
+    if (result.isConfirmed || result.isDenied) go();
+  });
 }));
 
 /* ---------- Toasts ---------- */

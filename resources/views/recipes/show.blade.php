@@ -62,6 +62,13 @@
                     <button class="button primary"><x-icon name="cart" />Stock ingredients</button>
                 </form>
                 <a class="button secondary" href="{{ route('recipes.edit', $recipe) }}"><x-icon name="edit" />Edit</a>
+                @if ($canDelete)
+                    <form method="post" action="{{ route('recipes.destroy', $recipe) }}" data-confirm="Delete {{ $recipe->title }}? Pantry items and catalog products it added are kept." data-confirm-button="Delete recipe">
+                        @csrf
+                        @method('DELETE')
+                        <button class="button secondary danger"><x-icon name="trash" />Delete</button>
+                    </form>
+                @endif
                 @if ($recipe->source_url)
                     <a class="button secondary" href="{{ $recipe->source_url }}" target="_blank" rel="noopener noreferrer"><x-icon name="external" />{{ $recipe->sourceDomain() }}</a>
                 @endif

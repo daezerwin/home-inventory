@@ -399,12 +399,50 @@ class RecipeTest extends TestCase
         $chef = Chef::create(['name' => 'Vanjo Merano']);
         $recipe = Recipe::create(['title' => 'Adobo', 'user_id' => $owner->id, 'chef_id' => $chef->id]);
 
+        // The recipe page offers Delete only to whoever can use it.
+        $this->actingAs($other)->get(route('recipes.show', $recipe))->assertDontSee('Delete recipe');
+        $this->actingAs($owner)->get(route('recipes.show', $recipe))->assertSee('Delete recipe');
+
         $this->actingAs($other)->delete(route('recipes.destroy', $recipe))->assertForbidden();
         $this->delete(route('chefs.destroy', $chef))->assertForbidden();
-        $this->actingAs($this->admin())->delete(route('chefs.destroy', $chef))->assertRedirect('/chefs');
+        $this->get(route('chefs.show', $chef))->assertDontSee('Delete chef');
+        $this->actingAs($this->admin())->get(route('chefs.show', $chef))->assertSee('Delete chef')->assertSee('Delete chef and recipe');
+        $this->delete(route('chefs.destroy', $chef))->assertRedirect('/chefs');
         $this->assertNull($recipe->fresh()->chef_id);
 
         $this->actingAs($owner)->delete(route('recipes.destroy', $recipe))->assertRedirect('/recipes');
         $this->assertDatabaseCount('recipes', 0);
+    }
+
+    public function test_a_chef_can_be_deleted_with_their_recipes_by_whoever_added_them_all(): void
+    {
+        Storage::fake('public');
+        $owner = User::factory()->create();
+        $chef = Chef::create(['name' => 'Cassie Best']);
+        Storage::disk('public')->put('recipes/pancakes.webp', 'x');
+        Storage::disk('public')->put('chefs/kitchen.webp', 'x');
+        $chef->hero_image_path = 'chefs/kitchen.webp';
+        $chef->save();
+        Recipe::create(['title' => 'Easy pancakes', 'user_id' => $owner->id, 'chef_id' => $chef->id, 'image_path' => 'recipes/pancakes.webp']);
+        Recipe::create(['title' => 'Crepes', 'user_id' => $owner->id, 'chef_id' => $chef->id]);
+        Recipe::create(['title' => 'Half imported', 'user_id' => $owner->id, 'chef_id' => $chef->id, 'draft' => true]);
+        $kept = Recipe::create(['title' => 'Someone else', 'user_id' => $owner->id]);
+
+        // Every recipe is theirs, so the person who added them may delete the chef, recipes and all.
+        $this->actingAs($owner)->get(route('chefs.show', $chef))->assertSee('Delete chef and 2 recipes');
+        $this->delete(route('chefs.destroy', $chef), ['with_recipes' => '1'])
+            ->assertRedirect('/chefs')
+            ->assertSessionHas('success', 'Cassie Best deleted, with their 2 recipes.');
+
+        $this->assertModelMissing($chef);
+        $this->assertSame([$kept->id], Recipe::withoutGlobalScope('published')->pluck('id')->all());
+        Storage::disk('public')->assertMissing('recipes/pancakes.webp');
+        Storage::disk('public')->assertMissing('chefs/kitchen.webp');
+
+        // A chef with someone else's recipe stays an admin's call.
+        $shared = Chef::create(['name' => 'Shared Kitchen']);
+        Recipe::create(['title' => 'Theirs', 'user_id' => User::factory()->create()->id, 'chef_id' => $shared->id]);
+        $this->delete(route('chefs.destroy', $shared), ['with_recipes' => '1'])->assertForbidden();
+        $this->assertModelExists($shared);
     }
 }

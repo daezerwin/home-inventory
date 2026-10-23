@@ -27,21 +27,23 @@ class ChefController extends Controller
         ]);
     }
 
-    public function show(Chef $chef)
+    public function show(Request $request, Chef $chef)
     {
         return view('chefs.show', [
             'chef' => $chef,
             'recipes' => $chef->recipes()->withCount('ingredients')->latest('id')->paginate(18),
             'heroImage' => $chef->heroImage(),
             'photoRecipes' => $chef->recipes()->whereNotNull('image_path')->latest('id')->get(),
+            'canDelete' => $chef->canBeDeletedBy($request->user()),
         ]);
     }
 
-    public function edit(Chef $chef)
+    public function edit(Request $request, Chef $chef)
     {
         return view('chefs.form', [
             'chef' => $chef,
             'photoRecipes' => $chef->recipes()->whereNotNull('image_path')->latest('id')->get(),
+            'canDelete' => $chef->canBeDeletedBy($request->user()),
         ]);
     }
 
@@ -92,7 +94,13 @@ class ChefController extends Controller
 
     public function destroy(Request $request, Chef $chef)
     {
-        abort_unless($request->user()->is_admin, 403);
+        abort_unless($chef->canBeDeletedBy($request->user()), 403);
+
+        // Their recipes (drafts too) go as well when asked; otherwise they stay, without a chef.
+        $recipes = $request->boolean('with_recipes')
+            ? Recipe::withoutGlobalScope('published')->where('chef_id', $chef->id)->get()
+            : collect();
+        $recipes->each->deleteWithPhoto();
 
         if ($chef->hero_image_path) {
             Storage::disk('public')->delete($chef->hero_image_path);
@@ -100,6 +108,10 @@ class ChefController extends Controller
 
         $chef->delete();
 
-        return redirect()->route('chefs.index')->with('success', "{$chef->name} removed. Their recipes are kept without a chef.");
+        $published = $recipes->where('draft', false)->count();
+
+        return redirect()->route('chefs.index')->with('success', $recipes->isNotEmpty()
+            ? "{$chef->name} deleted, with ".($published === 1 ? 'their recipe.' : "their {$published} recipes.")
+            : "{$chef->name} deleted. Their recipes are kept without a chef.");
     }
 }

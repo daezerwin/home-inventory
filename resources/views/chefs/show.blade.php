@@ -14,8 +14,13 @@
             <a href="{{ $chef->website }}" target="_blank" rel="noopener noreferrer"><x-icon name="external" />{{ $chef->domain() }}</a>
         @endif
     </p>
-    {{-- Opens the editor below; without JavaScript it is a link to the edit page. --}}
-    <a class="button hero-button" href="{{ route('chefs.edit', $chef) }}" data-dialog="chef-editor"><x-icon name="edit" />Edit chef</a>
+    <div class="hero-actions">
+        {{-- Opens the editor below; without JavaScript it is a link to the edit page. --}}
+        <a class="button hero-button" href="{{ route('chefs.edit', $chef) }}" data-dialog="chef-editor"><x-icon name="edit" />Edit chef</a>
+        @if ($canDelete)
+            @include('partials.chef-delete', ['class' => '', 'buttonClass' => 'button hero-button ghost'])
+        @endif
+    </div>
 </x-parallax-hero>
 @endsection
 
@@ -99,12 +104,8 @@
             @endif
             @include('partials.chef-fields')
         </form>
-        @if (auth()->user()->is_admin)
-            <form class="danger-zone" method="post" action="{{ route('chefs.destroy', $chef) }}" data-confirm="Remove {{ $chef->name }}? Their recipes are kept, without a chef.">
-                @csrf
-                @method('DELETE')
-                <button class="button secondary danger"><x-icon name="trash" />Remove chef</button>
-            </form>
+        @if ($canDelete)
+            @include('partials.chef-delete')
         @endif
     </div>
     <div class="sheet-foot">

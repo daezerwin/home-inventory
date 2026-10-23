@@ -18,11 +18,7 @@
     <button class="button primary">Save chef</button>
 </form>
 
-@if (auth()->user()->is_admin)
-    <form class="danger-zone" method="post" action="{{ route('chefs.destroy', $chef) }}" data-confirm="Remove {{ $chef->name }}? Their recipes are kept, without a chef.">
-        @csrf
-        @method('DELETE')
-        <button class="button secondary danger"><x-icon name="trash" />Remove chef</button>
-    </form>
+@if ($canDelete)
+    @include('partials.chef-delete')
 @endif
 @endsection

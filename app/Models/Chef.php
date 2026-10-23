@@ -26,6 +26,15 @@ class Chef extends Model
         return $this->belongsTo(Recipe::class, 'hero_recipe_id');
     }
 
+    /** Admins can delete any chef; anyone else one whose recipes (drafts too) they added themselves. */
+    public function canBeDeletedBy(User $user): bool
+    {
+        return $user->is_admin || ! Recipe::withoutGlobalScope('published')
+            ->where('chef_id', $this->id)
+            ->where(fn ($query) => $query->whereNull('user_id')->orWhere('user_id', '!=', $user->id))
+            ->exists();
+    }
+
     public function getHeroPhotoAttribute(): ?string
     {
         return $this->hero_image_path ? asset('storage/'.$this->hero_image_path) : null;
