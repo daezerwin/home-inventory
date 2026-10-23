@@ -1807,6 +1807,72 @@ a.stat:hover {
     opacity: 0;
     transform: translateY(8px);
 }
+
+/* ---------- SweetAlert2, in the app's own look ---------- */
+/* Dialogs only: a toast's container spans the screen too, and must not blur it. */
+.swal2-container.swal2-backdrop-show:has(> .swal-pantry) {
+    background: #2d172668;
+    backdrop-filter: blur(2px);
+}
+.swal-pantry {
+    width: min(420px, calc(100% - 32px));
+    padding: 26px 24px 22px;
+    border-radius: 15px;
+    font-family: "DM Sans", sans-serif;
+    color: var(--ink);
+    box-shadow: 0 10px 70px #34142522;
+}
+.swal-pantry .swal2-icon {
+    margin: 4px auto 14px;
+    transform: scale(0.75);
+}
+.swal-pantry .swal2-icon.swal2-warning {
+    border-color: #ecc9a6;
+    color: #d9895f;
+}
+.swal-pantry .swal2-icon.swal2-error {
+    border-color: #e7b8c2;
+}
+.swal-pantry .swal2-icon.swal2-error [class^="swal2-x-mark-line"] {
+    background-color: var(--maroon);
+}
+.swal-pantry .swal2-title {
+    padding: 0;
+    font: 700 19px/1.35 "Manrope", sans-serif;
+    color: var(--ink);
+}
+.swal-pantry .swal2-html-container {
+    margin: 10px 0 0;
+    padding: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #7f7277;
+}
+.swal-pantry .swal2-html-container p + p {
+    margin-top: 6px;
+}
+.swal-pantry-actions {
+    gap: 10px;
+    margin-top: 22px;
+}
+.swal-pantry-toast {
+    padding: 10px 14px !important;
+    border-radius: 10px !important;
+    font-family: "DM Sans", sans-serif;
+    box-shadow: 0 8px 30px #2f2a2c26 !important;
+}
+.swal-pantry-toast .swal2-title {
+    margin: 0 6px !important;
+    font-size: 13px !important;
+    font-weight: 600;
+    color: var(--ink);
+}
+.swal-pantry-toast .swal2-timer-progress-bar {
+    background: #b97c8c;
+}
+.swal2-container.swal2-top {
+    padding-top: calc(10px + env(safe-area-inset-top));
+}
 @keyframes toast-in {
     from {
         opacity: 0;

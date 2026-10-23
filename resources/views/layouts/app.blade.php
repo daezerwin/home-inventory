@@ -12,6 +12,7 @@
     <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
     <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
     <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ filemtime(public_path('css/app.css')) }}">
+    <script src="{{ asset('js/sweetalert2.all.min.js') }}?v=11.26.25" defer></script>
     <script src="{{ asset('js/app.js') }}?v={{ filemtime(public_path('js/app.js')) }}" defer></script>
 </head>
 {{-- A page with a full-bleed hero gets a see-through navbar on top of it. --}}
@@ -99,7 +100,8 @@
 
     <main id="main-content">
         @if ($errors->any())
-            <div class="notice error" role="alert">
+            {{-- Shown as a SweetAlert2 alert when the script runs (see app.js); plain otherwise. --}}
+            <div class="notice error" role="alert" data-swal-errors>
                 <div>@foreach ($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>
             </div>
         @endif

@@ -4,6 +4,24 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const peso = value => '₱' + value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/* ---------- SweetAlert2 for confirmations, toasts and error alerts ---------- */
+
+// In the app's own look. Without the library everything falls back to the plain
+// markup and the browser's confirm(), so nothing depends on it.
+const swal = window.Swal?.mixin({
+  buttonsStyling: false,
+  reverseButtons: true,
+  heightAuto: false,
+  customClass: {
+    popup: 'swal-pantry',
+    actions: 'swal-pantry-actions',
+    confirmButton: 'button primary',
+    cancelButton: 'button secondary',
+  },
+});
+// Inside an open <dialog>, or a modal dialog's top layer would cover it.
+const swalTarget = () => document.querySelector('dialog[open]') || 'body';
+
 /* ---------- Navigation drawer ---------- */
 
 let menuOpener = null;
@@ -65,15 +83,60 @@ $$('dialog').forEach(dialog => dialog.addEventListener('click', event => {
   const outside = event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
   if (outside && event.target === dialog) dialog.close();
 }));
+// "Delete X? This also…" asks first. The question is the title, the rest the detail,
+// and the confirm button repeats the form's own button ("Delete product").
 $$('[data-confirm]').forEach(form => form.addEventListener('submit', event => {
-  if (!confirm(form.dataset.confirm)) event.stopImmediatePropagation(), event.preventDefault();
+  if (form.dataset.confirmed) return void delete form.dataset.confirmed;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const submitter = event.submitter;
+  const go = () => {
+    form.dataset.confirmed = '1';
+    submitter ? form.requestSubmit(submitter) : form.requestSubmit();
+  };
+  if (!swal) return void (confirm(form.dataset.confirm) && go());
+  const [title, ...detail] = form.dataset.confirm.split(/(?<=\?)\s+/);
+  swal.fire({
+    target: swalTarget(),
+    icon: 'warning',
+    title,
+    text: detail.join(' '),
+    showCancelButton: true,
+    confirmButtonText: form.dataset.confirmButton || submitter?.textContent.trim() || 'Continue',
+    cancelButtonText: 'Cancel',
+    focusCancel: true,
+  }).then(result => result.isConfirmed && go());
 }));
 
 /* ---------- Toasts ---------- */
 
-function toast(message, isError = false) {
+// toast(message), toast(message, true) for an error, or toast(message, 'info') for a heads-up.
+function toast(message, kind = false) {
+  if (!message) return;
+  const isError = kind === true;
+  // A toast would replace a SweetAlert2 dialog that is open (not one already closing), so then the plain toast is used.
+  const popup = window.Swal?.isVisible() && window.Swal.getPopup();
+  const dialogOpen = popup && !popup.classList.contains('swal2-toast') && !popup.classList.contains('swal2-hide');
+  if (swal && !dialogOpen) {
+    swal.fire({
+      target: swalTarget(),
+      toast: true,
+      position: matchMedia('(max-width: 760px)').matches ? 'top' : 'bottom-end',
+      icon: isError ? 'error' : kind === 'info' ? 'info' : 'success',
+      title: message,
+      showConfirmButton: false,
+      timer: isError ? 5000 : 3200,
+      timerProgressBar: true,
+      customClass: { popup: 'swal-pantry-toast' },
+      didOpen: popup => {
+        popup.addEventListener('mouseenter', window.Swal.stopTimer);
+        popup.addEventListener('mouseleave', window.Swal.resumeTimer);
+      },
+    });
+    return;
+  }
   const region = $('.toast-region');
-  if (!region || !message) return;
+  if (!region) return;
   const el = document.createElement('div');
   el.className = 'toast' + (isError ? ' error' : '');
   el.setAttribute('role', isError ? 'alert' : 'status');
@@ -85,7 +148,25 @@ function scheduleDismiss(el) {
   setTimeout(() => { el.classList.add('leaving'); setTimeout(() => el.remove(), 300); }, 3200);
   el.addEventListener('click', () => el.remove());
 }
-$$('.toast').forEach(scheduleDismiss);
+// Messages the server flashed (saved, deleted…) become SweetAlert2 toasts too.
+$$('.toast-region .toast').forEach(el => {
+  if (!swal) return scheduleDismiss(el);
+  toast(el.textContent.trim(), el.classList.contains('error'));
+  el.remove();
+});
+
+// Form errors, unless an editor dialog reopened to show them in place.
+const errorNotice = $('[data-swal-errors]');
+if (errorNotice && swal && !$('dialog[data-open]')) {
+  const messages = $$('p', errorNotice).map(p => p.textContent);
+  errorNotice.remove();
+  swal.fire({
+    icon: 'error',
+    title: messages.length > 1 ? 'A few things to fix' : 'One thing to fix',
+    html: messages.map(message => `<p>${message.replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`)}</p>`).join(''),
+    confirmButtonText: 'OK',
+  });
+}
 
 /* ---------- Keep the scroll position across ordinary form posts ---------- */
 
@@ -243,7 +324,7 @@ let warnedOffline = false;
 function queueOffline(form, body) {
   writeOutbox({ ...readOutbox(), [form.action]: body.get('checked') });
   paintOutbox();
-  if (!warnedOffline) toast("You're offline. Ticks are saved on this phone and sync when you're back online.");
+  if (!warnedOffline) toast("You're offline. Ticks are saved on this phone and sync when you're back online.", 'info');
   warnedOffline = true;
 }
 

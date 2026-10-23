@@ -30,7 +30,7 @@
                     <small>{{ $draft->ingredients_count }} {{ str('ingredient')->plural($draft->ingredients_count) }} · started {{ $draft->created_at->diffForHumans() }}</small>
                 </div>
                 <a class="button secondary compact" href="{{ route('recipes.review', $draft) }}">Continue</a>
-                <form method="post" action="{{ route('recipes.discard', $draft) }}" data-confirm="Discard this import? The recipe won't be saved.">
+                <form method="post" action="{{ route('recipes.discard', $draft) }}" data-confirm-button="Discard" data-confirm="Discard this import? The recipe won't be saved.">
                     @csrf
                     @method('DELETE')
                     <button class="icon-button" aria-label="Discard {{ $draft->title }}" title="Discard"><x-icon name="trash" /></button>

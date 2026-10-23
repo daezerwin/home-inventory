@@ -142,7 +142,7 @@
                     <td>
                         <div class="table-actions">
                             <a class="button secondary compact" href="{{ route('admin.products.edit', $product) }}">Edit</a>
-                            <form method="post" action="{{ route('admin.products.destroy', $product) }}" data-confirm="Delete {{ $product->name }}? This also removes it from everyone's pantry and shopping list.">
+                            <form method="post" action="{{ route('admin.products.destroy', $product) }}" data-confirm-button="Delete" data-confirm="Delete {{ $product->name }}? This also removes it from everyone's pantry and shopping list.">
                                 @csrf
                                 @method('DELETE')
                                 <button class="icon-button text-danger" aria-label="Delete {{ $product->name }}"><x-icon name="trash" /></button>
