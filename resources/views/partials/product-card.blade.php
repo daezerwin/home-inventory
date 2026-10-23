@@ -10,6 +10,7 @@
         <div class="photo-placeholder" @if ($product->image) hidden @endif>
             <x-icon name="box" /><span>{{ $product->type ?: $product->category }}</span>
         </div>
+        <a class="card-edit" href="{{ route('products.edit', $product) }}" aria-label="Edit {{ $product->name }}" title="Edit product"><x-icon name="edit" /></a>
         @if ($stock)
             <span class="stock-tag {{ $status !== 'ok' ? 'low' : '' }}" data-stock-tag>
                 <span></span><em>{{ ['out' => 'Out of stock', 'low' => 'Low stock', 'ok' => 'In your pantry'][$status] }}</em>

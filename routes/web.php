@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\ChefController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RecipeController;
 use App\Http\Controllers\RecipeIngredientController;
 use App\Http\Controllers\RecipeReviewController;
@@ -55,6 +56,12 @@ Route::middleware('auth')->group(function () {
     Route::patch('/recipe-ingredients/{ingredient}', [RecipeIngredientController::class, 'update'])->name('recipe-ingredients.update');
     Route::get('/products/search', [RecipeIngredientController::class, 'search'])->name('products.search');
 
+    // The shared catalog: anyone adds and edits products; deleting them is for admins (below).
+    Route::get('/products/create', [ProductController::class, 'create'])->name('products.create');
+    Route::post('/products', [ProductController::class, 'store'])->name('products.store');
+    Route::get('/products/{product}/edit', [ProductController::class, 'edit'])->name('products.edit');
+    Route::put('/products/{product}', [ProductController::class, 'update'])->name('products.update');
+
     Route::get('/chefs', [ChefController::class, 'index'])->name('chefs.index');
     Route::get('/chefs/{chef:slug}', [ChefController::class, 'show'])->name('chefs.show');
     Route::get('/chefs/{chef:slug}/edit', [ChefController::class, 'edit'])->name('chefs.edit');
@@ -70,10 +77,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/images/run', [AdminController::class, 'runImages'])->name('images.run');
         Route::post('/reset/pantries', [AdminController::class, 'resetPantries'])->name('reset.pantries');
         Route::post('/reset/catalog', [AdminController::class, 'resetCatalog'])->name('reset.catalog');
-        Route::get('/products/create', [AdminController::class, 'create'])->name('products.create');
-        Route::post('/products', [AdminController::class, 'store'])->name('products.store');
-        Route::get('/products/{product}/edit', [AdminController::class, 'edit'])->name('products.edit');
-        Route::put('/products/{product}', [AdminController::class, 'update'])->name('products.update');
         Route::delete('/products/{product}', [AdminController::class, 'destroy'])->name('products.destroy');
     });
 });

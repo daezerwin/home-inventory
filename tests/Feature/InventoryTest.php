@@ -53,7 +53,7 @@ class InventoryTest extends TestCase
         $product = $this->product();
         Stock::create(['user_id' => $user->id, 'product_id' => $product->id, 'quantity' => 2, 'target_quantity' => 3]);
         CartItem::create(['user_id' => $user->id, 'product_id' => $product->id, 'quantity' => 1]);
-        foreach (['/', '/?view=list', '/pantry', '/pantry?status=low', '/shopping-list', '/admin', '/admin/products/create', '/admin/products/'.$product->id.'/edit'] as $url) {
+        foreach (['/', '/?view=list', '/pantry', '/pantry?status=low', '/shopping-list', '/admin', '/products/create', '/products/'.$product->id.'/edit'] as $url) {
             $this->actingAs($user)->get($url)->assertOk();
         }
         $this->get('/?q=missing')->assertDontSee('Everyday rice');
@@ -76,13 +76,41 @@ class InventoryTest extends TestCase
         $user->is_admin = true;
         $user->save();
         $data = ['sku' => 'P2', 'category' => 'Home Care', 'name' => 'Soap', 'image_url' => 'https://smmarkets.ph/soap.png', 'type' => 'Soap', 'size' => '100g', 'price' => 25];
-        $this->actingAs($user)->post('/admin/products', $data)->assertRedirect('/admin');
+        $this->actingAs($user)->post('/products', $data)->assertRedirect('/?q=Soap');
         $product = Product::first();
         Queue::assertPushed(DownloadProductImage::class);
-        $this->put('/admin/products/'.$product->id, array_merge($data, ['name' => 'Hand soap']))->assertRedirect('/admin');
+        $this->put('/products/'.$product->id, array_merge($data, ['name' => 'Hand soap', 'return' => url('/admin')]))->assertRedirect('/admin');
         $this->assertDatabaseHas('products', ['name' => 'Hand soap']);
         $this->delete('/admin/products/'.$product->id)->assertRedirect();
         $this->assertDatabaseCount('products', 0);
+    }
+
+    public function test_everyone_can_add_and_edit_products_from_discover_but_only_admins_delete(): void
+    {
+        Queue::fake();
+        $user = User::factory()->create();
+        $product = $this->product();
+
+        // Discover offers it: an add button, an edit pencil per card, and "Add …" when a search finds nothing.
+        $this->actingAs($user)->get('/?category=Pantry')->assertSee(route('products.create'), false)->assertSee(route('products.edit', $product), false);
+        $this->get('/?q=Oat+milk')->assertSee(route('products.create', ['name' => 'Oat milk']), false)->assertSee('Add “Oat milk”');
+        $this->get('/products/create?name=Oat+milk')->assertOk()->assertSee('value="Oat milk"', false)->assertDontSee('Delete product');
+
+        // No SKU needed; one is made up.
+        $this->post('/products', ['name' => 'Oat milk', 'category' => 'Chilled & Dairy Items', 'price' => '120'])->assertRedirect(route('catalog', ['q' => 'Oat milk']));
+        $oat = Product::where('name', 'Oat milk')->firstOrFail();
+        $this->assertMatchesRegularExpression('/^USR-[A-Z0-9]{8}$/', $oat->sku);
+
+        // Editing keeps the SKU when it is left blank, and returns to where the form was opened.
+        $this->from('/?category=Pantry')->get(route('products.edit', $product))->assertOk()->assertSee('value="'.url('/?category=Pantry').'"', false);
+        $this->put(route('products.update', $product), ['name' => 'Jasmine rice', 'category' => 'Pantry', 'price' => '70', 'return' => url('/?category=Pantry')])
+            ->assertRedirect('/?category=Pantry');
+        $this->assertSame(['Jasmine rice', 'SKU-001'], [$product->fresh()->name, $product->fresh()->sku]);
+        // Only pages of this app count as "where you came from".
+        $this->put(route('products.update', $product), ['name' => 'Jasmine rice', 'category' => 'Pantry', 'price' => '70', 'return' => 'https://example.com/'])->assertRedirect('/');
+
+        $this->delete('/admin/products/'.$product->id)->assertForbidden();
+        $this->get('/admin')->assertForbidden();
     }
 
     public function test_tracking_and_adjusting_stock_is_personal_and_never_negative(): void

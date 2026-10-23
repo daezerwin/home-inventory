@@ -15,7 +15,10 @@
                 <span class="eyebrow">A WELL-STOCKED HOME STARTS HERE</span>
                 <h1>Good things<br>for your home.</h1>
                 <p>Explore the catalog, pick your essentials, and keep life stocked. Add your favorites to My pantry and say goodbye to “do we still have this?”</p>
-                <a class="button primary" href="{{ route('pantry') }}">Go to my pantry<x-icon name="arrow" /></a>
+                <div class="heading-actions">
+                    <a class="button primary" href="{{ route('pantry') }}">Go to my pantry<x-icon name="arrow" /></a>
+                    <a class="button secondary" href="{{ route('products.create') }}"><x-icon name="plus" />Add a product</a>
+                </div>
             </div>
             <div class="pantry-art" aria-hidden="true">
                 <span class="art-circle"></span>
@@ -45,7 +48,10 @@
             <button class="button primary" @disabled(! $stats['low'])><x-icon name="cart" />Restock low items</button>
         </form>
     @else
-        <a class="button primary" href="{{ route('pantry') }}">Go to my pantry<x-icon name="arrow" /></a>
+        <div class="heading-actions">
+            <a class="button secondary" href="{{ route('products.create') }}"><x-icon name="plus" />Add a product</a>
+            <a class="button primary" href="{{ route('pantry') }}">Go to my pantry<x-icon name="arrow" /></a>
+        </div>
     @endif
 </div>
 @endunless
@@ -127,9 +133,14 @@
                     <p>Browse the catalog and tap <b>My pantry</b> on the things you keep at home. Then track how many you have and restock in one tap.</p>
                 @else
                     <h2>No items found.</h2>
-                    <p>Try another search or group.@if (auth()->user()->is_admin) Admins can add products or import a catalog CSV.@endif</p>
+                    <p>Try another search or group, or add it to the catalog yourself.</p>
                 @endif
-                <a class="button primary" href="{{ route('catalog') }}">Explore the catalog<x-icon name="arrow" /></a>
+                <div class="heading-actions">
+                    @if ($mode === 'catalog' || $filtered)
+                        <a class="button secondary" href="{{ route('products.create', array_filter(['name' => request('q')])) }}"><x-icon name="plus" />Add {{ request('q') ? '“'.str(request('q'))->limit(30).'”' : 'a product' }}</a>
+                    @endif
+                    <a class="button primary" href="{{ route('catalog') }}">Explore the catalog<x-icon name="arrow" /></a>
+                </div>
             </div>
         @endforelse
     </div>

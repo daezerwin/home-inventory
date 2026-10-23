@@ -8,7 +8,7 @@
         <h1>Manage your catalog.</h1>
         <p>One shared catalog. Everyone's pantry and shopping list pick from it.</p>
     </div>
-    <a class="button primary" href="{{ route('admin.products.create') }}"><x-icon name="plus" />New product</a>
+    <a class="button primary" href="{{ route('products.create') }}"><x-icon name="plus" />New product</a>
 </div>
 
 @php($photoPercent = $withPhotoUrl ? intdiv(100 * $localImages, $withPhotoUrl) : 100)
@@ -141,7 +141,7 @@
                     <td data-label="Price">₱{{ number_format($product->price, 2) }}</td>
                     <td>
                         <div class="table-actions">
-                            <a class="button secondary compact" href="{{ route('admin.products.edit', $product) }}">Edit</a>
+                            <a class="button secondary compact" href="{{ route('products.edit', $product) }}">Edit</a>
                             <form method="post" action="{{ route('admin.products.destroy', $product) }}" data-confirm-button="Delete" data-confirm="Delete {{ $product->name }}? This also removes it from everyone's pantry and shopping list.">
                                 @csrf
                                 @method('DELETE')

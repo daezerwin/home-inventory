@@ -12,7 +12,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
@@ -48,44 +47,6 @@ class AdminController extends Controller
     public function status()
     {
         return response()->json($this->photoStatus());
-    }
-
-    public function create()
-    {
-        return view('admin.form', ['product' => new Product]);
-    }
-
-    public function edit(Product $product)
-    {
-        return view('admin.form', compact('product'));
-    }
-
-    public function store(Request $request)
-    {
-        $product = Product::create($this->validated($request));
-
-        if ($product->image_url) {
-            DownloadProductImage::dispatch($product->id);
-        }
-
-        return redirect()->route('admin.index')->with('success', "{$product->name} created.");
-    }
-
-    public function update(Request $request, Product $product)
-    {
-        $data = $this->validated($request, $product);
-
-        if ($product->image_url !== ($data['image_url'] ?? null)) {
-            $data['image_path'] = null;
-        }
-
-        $product->update($data);
-
-        if ($product->image_url && ! $product->image_path) {
-            DownloadProductImage::dispatch($product->id);
-        }
-
-        return redirect()->route('admin.index')->with('success', "{$product->name} saved.");
     }
 
     public function destroy(Product $product)
@@ -201,19 +162,6 @@ class AdminController extends Controller
     private function confirmReset(Request $request): void
     {
         $request->validate(['confirmation' => 'required|in:RESET'], ['confirmation.*' => 'Type RESET to confirm.']);
-    }
-
-    private function validated(Request $request, ?Product $product = null): array
-    {
-        return $request->validate([
-            'sku' => ['required', 'string', 'max:255', Rule::unique('products')->ignore($product?->id)],
-            'category' => 'required|string|max:255',
-            'name' => 'required|string|max:255',
-            'image_url' => 'nullable|url:http,https|max:2048',
-            'type' => 'nullable|string|max:255',
-            'size' => 'nullable|string|max:255',
-            'price' => 'required|numeric|min:0|max:9999999999.99',
-        ]);
     }
 
     /** The file an earlier download of this product's photo left, named as ImageDownloader names it. */

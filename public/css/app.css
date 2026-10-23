@@ -829,6 +829,43 @@ main#main-content {
     text-align: center;
     color: #b4a99d;
 }
+/* Edit pencil on each card: quiet until the card is hovered (always there on touch screens). */
+.card-edit {
+    position: absolute;
+    top: 9px;
+    right: 9px;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #ffffffe6;
+    border: 1px solid #ebe5e1;
+    color: #8f7f86;
+    opacity: 0.7;
+    transition:
+        opacity 0.2s,
+        color 0.2s,
+        border-color 0.2s;
+}
+.card-edit .icon {
+    width: 15px;
+    height: 15px;
+}
+.product-card:hover .card-edit,
+.card-edit:focus-visible {
+    opacity: 1;
+}
+.card-edit:hover {
+    color: var(--maroon);
+    border-color: #dcc3cb;
+}
+@media (hover: none) {
+    .card-edit {
+        opacity: 1;
+    }
+}
 .stock-tag {
     position: absolute;
     top: 11px;

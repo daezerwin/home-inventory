@@ -4,23 +4,24 @@
 @section('content')
 <div class="page-heading">
     <div>
-        <div class="eyebrow">CURATE YOUR EVERYDAY</div>
+        <div class="eyebrow">{{ $product->exists ? 'IN THE SHARED CATALOG' : 'ADD TO THE SHARED CATALOG' }}</div>
         <h1>{{ $product->exists ? 'Edit product.' : 'Something new for home.' }}</h1>
-        <p>Fields follow the inventory CSV: sku, group, name, image, type, size and price.</p>
+        <p>{{ $product->exists ? 'Changes show for everyone in the household.' : "Not in the catalog yet? Add it, then put it in My pantry or on the shopping list." }}</p>
     </div>
-    <a class="button secondary" href="{{ route('admin.index') }}">Back to catalog</a>
+    <a class="button secondary" href="{{ $return }}">Back</a>
 </div>
 
 <div class="editor-layout">
-    <form class="editor-panel stack-form" method="post" action="{{ $product->exists ? route('admin.products.update', $product) : route('admin.products.store') }}">
+    <form class="editor-panel stack-form" method="post" action="{{ $product->exists ? route('products.update', $product) : route('products.store') }}">
         @csrf
+        <input type="hidden" name="return" value="{{ old('return', $return) }}">
         @if ($product->exists)
             @method('PUT')
         @endif
 
         <label>Product name<input name="name" value="{{ old('name', $product->name) }}" required maxlength="255"></label>
         <div class="form-columns">
-            <label>SKU<input name="sku" value="{{ old('sku', $product->sku) }}" required maxlength="255"></label>
+            <label>SKU (optional)<input name="sku" value="{{ old('sku', $product->sku) }}" maxlength="255" placeholder="Made up if left blank"></label>
             <label>Group<input name="category" value="{{ old('category', $product->category) }}" required maxlength="255" list="category-options"></label>
         </div>
         <datalist id="category-options">
@@ -47,11 +48,13 @@
                     <div class="photo-placeholder"><x-icon name="box" /><span>{{ $product->image_url ? 'Photo downloading…' : 'No photo' }}</span></div>
                 @endif
             </div>
-            <form method="post" action="{{ route('admin.products.destroy', $product) }}" data-confirm="Delete {{ $product->name }}? This also removes it from everyone's pantry and shopping list.">
-                @csrf
-                @method('DELETE')
-                <button class="button secondary danger"><x-icon name="trash" />Delete product</button>
-            </form>
+            @if (auth()->user()->is_admin)
+                <form method="post" action="{{ route('admin.products.destroy', $product) }}" data-confirm="Delete {{ $product->name }}? This also removes it from everyone's pantry and shopping list.">
+                    @csrf
+                    @method('DELETE')
+                    <button class="button secondary danger"><x-icon name="trash" />Delete product</button>
+                </form>
+            @endif
         </aside>
     @endif
 </div>

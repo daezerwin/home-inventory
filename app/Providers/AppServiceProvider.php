@@ -28,7 +28,7 @@ class AppServiceProvider extends ServiceProvider
         // Some pages list the groups too (chips, datalist), so the results are
         // kept on the request to avoid querying twice. On My pantry they are the
         // groups in that person's pantry, counted there.
-        View::composer(['layouts.app', 'inventory', 'admin.form', 'recipes.new-item'], function ($view) {
+        View::composer(['layouts.app', 'inventory', 'products.form', 'recipes.new-item'], function ($view) {
             $shared = request()->attributes;
 
             if (! $shared->has('categories')) {
