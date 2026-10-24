@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\RecipeIngredient;
+use App\Models\Stock;
 use App\Services\IngredientMatcher;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 class RecipeIngredientController extends Controller
 {
@@ -28,7 +30,11 @@ class RecipeIngredientController extends Controller
         return back()->with('success', $message);
     }
 
-    /** JSON catalog search for the "Change" picker, best grocery matches first. */
+    /**
+     * JSON catalog search for the picker, best grocery matches first. What is in
+     * the person's pantry comes first (marked "pantry"), so they pick what they
+     * already have instead of a look-alike.
+     */
     public function search(Request $request, IngredientMatcher $matcher)
     {
         $query = mb_substr($request->string('q')->trim()->toString(), 0, 120);
@@ -37,21 +43,39 @@ class RecipeIngredientController extends Controller
             return response()->json([]);
         }
 
-        $products = $matcher->rank($query, 15);
+        $atHome = Stock::where('user_id', $request->user()->id)->pluck('quantity', 'product_id');
+        $mine = $this->find($matcher, $query, 5, $atHome->keys()->all());
+        $catalog = $this->find($matcher, $query, 15 + $mine->count())->reject(fn (Product $product) => $atHome->has($product->id))->take(15);
 
-        if ($products->isEmpty()) {
-            $term = '%'.addcslashes($query, '%_\\').'%';
-            $products = Product::where('name', 'like', $term)->orderByRaw('length(name)')->limit(15)->get();
-        }
-
-        return response()->json($products->map(fn (Product $product) => [
+        return response()->json($mine->concat($catalog)->map(fn (Product $product) => [
             'id' => $product->id,
             'name' => $product->name,
             'size' => $product->size,
             'category' => $product->category,
             'price' => '₱'.number_format($product->price, 2),
             'image' => $product->image,
-        ]));
+            'pantry' => $atHome->has($product->id),
+            'atHome' => $atHome->get($product->id),
+        ])->values());
+    }
+
+    /** Ranked matches, else plain name matches; only among $onlyIds when given. */
+    private function find(IngredientMatcher $matcher, string $query, int $limit, ?array $onlyIds = null): Collection
+    {
+        if ($onlyIds === []) {
+            return collect();
+        }
+
+        $products = $matcher->rank($query, $limit, onlyIds: $onlyIds);
+
+        if ($products->isEmpty()) {
+            $term = '%'.addcslashes($query, '%_\\').'%';
+            $products = Product::where('name', 'like', $term)
+                ->when($onlyIds !== null, fn ($products) => $products->whereKey($onlyIds))
+                ->orderByRaw('length(name)')->limit($limit)->get();
+        }
+
+        return $products;
     }
 
     private function link(RecipeIngredient $ingredient, Product $product): string

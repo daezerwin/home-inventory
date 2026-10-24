@@ -613,7 +613,7 @@ if (picker) {
 
   const resultButton = product => {
     const button = document.createElement('button');
-    button.className = 'picker-result';
+    button.className = 'picker-result' + (product.pantry ? ' in-pantry' : '');
     button.name = 'product_id';
     button.value = product.id;
     const thumb = document.createElement('span');
@@ -635,9 +635,15 @@ if (picker) {
     text.append(name, details);
     const price = document.createElement('span');
     price.className = 'price';
-    price.textContent = product.price;
+    price.textContent = !product.pantry ? product.price : product.atHome ? `At home: ${product.atHome}` : 'None at home';
     button.append(thumb, text, price);
     return button;
+  };
+  const groupLabel = (label, pantry = false) => {
+    const el = document.createElement('p');
+    el.className = 'option-group' + (pantry ? ' pantry' : '');
+    el.textContent = label;
+    return el;
   };
 
   const search = async () => {
@@ -655,7 +661,14 @@ if (picker) {
         empty.textContent = 'Nothing in the catalog matches. Add it as a new item below.';
         results.replaceChildren(empty);
       } else {
-        results.replaceChildren(...products.map(resultButton));
+        // What is already in the pantry comes first, under its own heading.
+        const mine = products.filter(product => product.pantry);
+        const rest = products.filter(product => !product.pantry);
+        results.replaceChildren(
+          ...(mine.length ? [groupLabel('In your pantry', true), ...mine.map(resultButton)] : []),
+          ...(mine.length && rest.length ? [groupLabel('From the catalog')] : []),
+          ...rest.map(resultButton),
+        );
       }
     } catch {
       results.replaceChildren();

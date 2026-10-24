@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\Recipe;
 use App\Models\RecipeIngredient;
+use App\Models\Stock;
 use App\Services\IngredientMatcher;
 use App\Services\RecipeStocker;
 use Illuminate\Http\Request;
@@ -21,13 +22,17 @@ class RecipeReviewController extends Controller
     {
         $this->authorizeDraft($request, $draft);
         $draft->load(['chef', 'ingredients.product']);
+        $atHome = Stock::where('user_id', $request->user()->id)->pluck('quantity', 'product_id');
 
         return view('recipes.review', [
             'recipe' => $draft,
-            // A few likely catalog items per ingredient, to pick from in one tap.
-            'suggestions' => $draft->ingredients->mapWithKeys(fn (RecipeIngredient $ingredient) => [
-                $ingredient->id => $matcher->rank($ingredient->name, 3),
-            ]),
+            'atHome' => $atHome,
+            // A few likely items per ingredient, to pick in one tap: what is already in
+            // the pantry first, kept apart from the rest of the catalog.
+            'suggestions' => $draft->ingredients->mapWithKeys(fn (RecipeIngredient $ingredient) => [$ingredient->id => [
+                'pantry' => $matcher->rank($ingredient->name, 3, onlyIds: $atHome->keys()->all()),
+                'catalog' => $matcher->rank($ingredient->name, 3 + $atHome->count())->reject(fn (Product $product) => $atHome->has($product->id))->take(3)->values(),
+            ]]),
         ]);
     }
 

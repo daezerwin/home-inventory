@@ -2498,6 +2498,17 @@ dialog.picker {
 .picker-result .match-product {
     flex: 1;
 }
+.picker-result.in-pantry {
+    border-color: #d5e2cc;
+    background: #f8fbf6;
+}
+.picker-result.in-pantry .price {
+    color: #5f7d51;
+    font-size: 12px;
+}
+.picker-results .option-group {
+    margin: 6px 0 0;
+}
 .picker-result .price {
     font-weight: 700;
     font-size: 13px;
@@ -2656,11 +2667,43 @@ dialog.picker {
     width: 14px;
     height: 14px;
 }
+.review-picks {
+    margin: 14px 0 0 36px;
+}
+/* "In your pantry" above "From the catalog", so what is at home gets picked first. */
+.option-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 7px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #a09b9d;
+}
+.option-group + .review-options + .option-group,
+.review-options + .option-group {
+    margin-top: 14px;
+}
+.option-group .icon {
+    width: 14px;
+    height: 14px;
+}
+.option-group.pantry {
+    color: #5f7d51;
+}
 .review-options {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
     gap: 8px;
-    margin: 14px 0 0 36px;
+}
+.option-card.in-pantry:not(.selected) {
+    border-color: #d5e2cc;
+    background: #f8fbf6;
+}
+.option-card.in-pantry small {
+    color: #5f7d51;
 }
 .option-card {
     position: relative;
@@ -2799,6 +2842,10 @@ dialog.picker {
 }
 .review-progress .status-dot.open {
     background: #d9895f;
+}
+.review-progress .status-dot.pantry {
+    background: #5f7d51;
+    box-shadow: 0 0 0 2px #eaf0e8;
 }
 .review-progress .muted,
 .review-finish .muted {
@@ -4265,7 +4312,7 @@ dialog.sheet[open] {
         gap: 20px;
         padding: 20px 18px;
     }
-    .review-options,
+    .review-picks,
     .review-actions {
         margin-left: 0;
     }

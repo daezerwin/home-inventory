@@ -6,6 +6,7 @@
 @php($skipped = $ingredients->where('skip', true)->count())
 @php($picked = $ingredients->filter(fn ($ingredient) => ! $ingredient->skip && $ingredient->product_id)->count())
 @php($open = $ingredients->count() - $picked - $skipped)
+@php($fromPantry = $ingredients->filter(fn ($ingredient) => ! $ingredient->skip && $atHome->has($ingredient->product_id))->count())
 
 @include('partials.import-steps', ['step' => 2])
 
@@ -13,7 +14,7 @@
     <div>
         <div class="eyebrow">STEP 2 OF 3</div>
         <h1>Pick the ingredients.</h1>
-        <p>Choose what you buy for each one. Tap a suggestion, search the catalog, add a new item, or skip what you always have.</p>
+        <p>Choose what you buy for each one. What's already in your pantry comes first, so you use what you have instead of a look-alike. Or search the catalog, add a new item, or skip what you always have.</p>
     </div>
 </div>
 
@@ -21,7 +22,12 @@
     <section class="review-list" aria-label="Ingredients">
         @forelse ($ingredients as $ingredient)
             @php($product = $ingredient->product)
-            @php($options = $suggestions[$ingredient->id]->when($product, fn ($items) => $items->reject(fn ($item) => $item->id === $product->id)->prepend($product))->take(4))
+            {{-- Pantry matches and catalog matches stay apart; a pick that isn't among them joins its own group. --}}
+            @php($mine = $suggestions[$ingredient->id]['pantry'])
+            @php($others = $suggestions[$ingredient->id]['catalog'])
+            @if ($product && ! $mine->contains('id', $product->id) && ! $others->contains('id', $product->id))
+                @php($atHome->has($product->id) ? $mine->prepend($product) : $others->prepend($product))
+            @endif
             @php($state = $ingredient->skip ? 'skipped' : ($product ? 'picked' : 'open'))
             <article class="review-row state-{{ $state }}" id="ingredient-{{ $ingredient->id }}">
                 <header class="review-row-head">
@@ -31,6 +37,9 @@
                         <small class="review-state">
                             @if ($state === 'skipped')
                                 Skipped. You won't be asked to buy this.
+                            @elseif ($state === 'picked' && $atHome->has($product->id))
+                                @php($qty = $atHome->get($product->id))
+                                <x-icon name="home" />Using {{ $product->name }} from your pantry ({{ $qty ? "{$qty} at home" : 'none at home, so it goes on your list' }})
                             @elseif ($state === 'picked')
                                 <x-icon name="check" />Buying {{ $product->name }}
                             @else
@@ -40,30 +49,27 @@
                     </div>
                 </header>
 
-                @if ($options->isNotEmpty() && ! $ingredient->skip)
-                    <form class="review-options" method="post" action="{{ route('recipe-ingredients.update', $ingredient) }}">
+                @if (($mine->isNotEmpty() || $others->isNotEmpty()) && ! $ingredient->skip)
+                    <form class="review-picks" method="post" action="{{ route('recipe-ingredients.update', $ingredient) }}">
                         @csrf
                         @method('PATCH')
                         <input type="hidden" name="action" value="product">
-                        @foreach ($options as $option)
-                            @php($chosen = $product?->id === $option->id)
-                            <button class="option-card {{ $chosen ? 'selected' : '' }}" name="product_id" value="{{ $option->id }}" aria-pressed="{{ $chosen ? 'true' : 'false' }}">
-                                <span class="thumb">
-                                    @if ($option->image)
-                                        <img src="{{ $option->image }}" alt="" loading="lazy" decoding="async">
-                                    @else
-                                        <x-icon name="box" />
-                                    @endif
-                                </span>
-                                <span class="option-text">
-                                    <b>{{ $option->name }}</b>
-                                    <small>{{ collect([$option->size, $option->price > 0 ? '₱'.number_format($option->price, 2) : null])->filter()->implode(' · ') ?: $option->category }}</small>
-                                </span>
-                                @if ($chosen)
-                                    <x-icon name="check" class="option-check" />
-                                @endif
-                            </button>
-                        @endforeach
+                        @if ($mine->isNotEmpty())
+                            <p class="option-group pantry"><x-icon name="home" />In your pantry</p>
+                            <div class="review-options">
+                                @foreach ($mine as $option)
+                                    @include('partials.review-option')
+                                @endforeach
+                            </div>
+                        @endif
+                        @if ($others->isNotEmpty())
+                            <p class="option-group"><x-icon name="grid" />{{ $mine->isNotEmpty() ? 'Or from the catalog' : 'From the catalog' }}</p>
+                            <div class="review-options">
+                                @foreach ($others->take(4) as $option)
+                                    @include('partials.review-option')
+                                @endforeach
+                            </div>
+                        @endif
                     </form>
                 @endif
 
@@ -113,6 +119,9 @@
             <p><b>{{ $picked + $skipped }} of {{ $ingredients->count() }}</b> ingredients decided</p>
             <ul>
                 <li><span class="status-dot picked"></span>{{ $picked }} picked</li>
+                @if ($fromPantry)
+                    <li><span class="status-dot pantry"></span>{{ $fromPantry }} from your pantry</li>
+                @endif
                 <li><span class="status-dot skipped"></span>{{ $skipped }} skipped</li>
                 @if ($open)
                     <li><span class="status-dot open"></span>{{ $open }} not picked yet</li>

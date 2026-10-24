@@ -95,25 +95,40 @@ class IngredientMatcher
             || in_array(Str::lower(Str::squish($name)), self::STAPLES, true);
     }
 
-    public function match(string $name): ?Product
+    /**
+     * The product an ingredient is most likely bought as. Products in $preferIds
+     * (the person's pantry) win when one fits, so a recipe uses what is at home
+     * instead of a look-alike from the catalog.
+     *
+     * @param  list<int>  $preferIds
+     */
+    public function match(string $name, array $preferIds = []): ?Product
     {
-        return $this->rank($name, 1, minimum: 5)->first();
+        return ($preferIds ? $this->rank($name, 1, minimum: 5, onlyIds: $preferIds)->first() : null)
+            ?? $this->rank($name, 1, minimum: 5)->first();
     }
 
     /**
-     * Catalog products for an ingredient or search term, best first.
+     * Catalog products for an ingredient or search term, best first; only
+     * among $onlyIds when given.
      *
+     * @param  list<int>|null  $onlyIds
      * @return Collection<int, Product>
      */
-    public function rank(string $query, int $limit = 20, float $minimum = 0): Collection
+    public function rank(string $query, int $limit = 20, float $minimum = 0, ?array $onlyIds = null): Collection
     {
         $scored = collect();
+
+        if ($onlyIds === []) {
+            return $scored;
+        }
 
         foreach ($this->variants($query) as $words) {
             $head = end($words);
             $root = mb_substr($head, 0, max(3, mb_strlen($head) - 1));
 
             $candidates = Product::query()
+                ->when($onlyIds !== null, fn ($products) => $products->whereKey($onlyIds))
                 ->whereNotIn('category', self::NON_FOOD_GROUPS)
                 ->where('name', 'like', '%'.addcslashes($root, '%_\\').'%')
                 ->orderByRaw('length(name)')

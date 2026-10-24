@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Chef;
 use App\Models\Recipe;
+use App\Models\Stock;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -43,7 +44,7 @@ class RecipeImporter
                 'draft' => $draft,
             ]);
 
-            $this->syncIngredients($recipe, $data['ingredients']);
+            $this->syncIngredients($recipe, $data['ingredients'], $user);
 
             return $recipe;
         });
@@ -55,13 +56,15 @@ class RecipeImporter
 
     /**
      * Replaces a recipe's ingredient list, keeping the catalog match and skip
-     * choice of every line that didn't change.
+     * choice of every line that didn't change. New lines are matched to
+     * $user's pantry first, then to the rest of the catalog.
      *
      * @param  list<array{line: string, name?: ?string}>  $ingredients
      */
-    public function syncIngredients(Recipe $recipe, array $ingredients): void
+    public function syncIngredients(Recipe $recipe, array $ingredients, ?User $user = null): void
     {
         $existing = $recipe->ingredients()->get()->groupBy('line');
+        $pantry = $user ? Stock::where('user_id', $user->id)->pluck('product_id')->all() : [];
         $keep = [];
 
         foreach (array_values($ingredients) as $position => $ingredient) {
@@ -83,7 +86,7 @@ class RecipeImporter
                 'line' => $line,
                 'name' => $name,
                 'skip' => $staple,
-                'product_id' => $staple ? null : $this->matcher->match($name)?->id,
+                'product_id' => $staple ? null : $this->matcher->match($name, $pantry)?->id,
             ])->id;
         }
 

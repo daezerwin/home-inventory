@@ -83,7 +83,7 @@ class RecipeController extends Controller
         $data = $this->validated($request);
 
         $recipe = Recipe::create([...$this->attributes($data), 'user_id' => $request->user()->id]);
-        $importer->syncIngredients($recipe, $this->ingredientLines($data['ingredients']));
+        $importer->syncIngredients($recipe, $this->ingredientLines($data['ingredients']), $request->user());
         $importer->downloadImage($recipe);
 
         return redirect()->route('recipes.show', $recipe)->with('success', 'Recipe saved.');
@@ -123,7 +123,7 @@ class RecipeController extends Controller
         }
 
         $recipe->update($attributes);
-        $importer->syncIngredients($recipe, $this->ingredientLines($data['ingredients']));
+        $importer->syncIngredients($recipe, $this->ingredientLines($data['ingredients']), $request->user());
 
         if ($newPhoto) {
             $importer->downloadImage($recipe);

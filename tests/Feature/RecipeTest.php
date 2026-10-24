@@ -186,6 +186,43 @@ class RecipeTest extends TestCase
         $this->get(route('recipes.show', $recipe))->assertOk()->assertSee('Maria Santos')->assertSee('SS Eggplant')->assertSee('Fry the eggplant until golden.');
     }
 
+    public function test_the_wizard_prefers_what_is_already_in_my_pantry_and_keeps_it_apart_from_the_catalog(): void
+    {
+        Storage::fake('public');
+        $this->catalog();
+        Http::fake([
+            '93.184.216.34/images/*' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
+            '93.184.216.34/*' => Http::response($this->fixture(), 200, ['Content-Type' => 'text/html']),
+        ]);
+        $user = User::factory()->create();
+        $native = Product::create(['sku' => 'NG', 'category' => 'Fresh Produce', 'name' => 'Native Garlic', 'size' => '250g', 'price' => 120]);
+        Stock::create(['user_id' => $user->id, 'product_id' => $native->id, 'quantity' => 3]);
+        // Someone else's pantry is not mine.
+        $peeled = Product::create(['sku' => 'PG', 'category' => 'Fresh Produce', 'name' => 'Peeled Garlic', 'price' => 39]);
+        Stock::create(['user_id' => User::factory()->create()->id, 'product_id' => $peeled->id, 'quantity' => 1]);
+
+        $this->actingAs($user)->post('/recipes/import', ['url' => self::PAGE]);
+        $draft = Recipe::drafts()->with('ingredients.product')->firstOrFail();
+
+        // The garlic I have wins over the catalog's best match; the rest match as before.
+        $matches = $draft->ingredients->mapWithKeys(fn ($i) => [$i->name => $i->skip ? 'skip' : $i->product?->name])->all();
+        $this->assertSame('Native Garlic', $matches['Garlic']);
+        $this->assertSame('SS Eggplant', $matches['Chinese eggplant']);
+
+        $page = $this->get(route('recipes.review', $draft))->assertOk();
+        $page->assertSeeInOrder(['5 cloves garlic, chopped', 'In your pantry', 'Native Garlic', 'At home: 3', 'Or from the catalog', 'Global Garlic'])
+            ->assertSee('Using Native Garlic from your pantry (3 at home)')
+            ->assertSee('1 from your pantry');
+
+        // Search too: my pantry first, marked, then the catalog.
+        $this->getJson('/products/search?q=garlic')->assertOk()
+            ->assertJsonPath('0.name', 'Native Garlic')
+            ->assertJsonPath('0.pantry', true)
+            ->assertJsonPath('0.atHome', 3)
+            ->assertJsonPath('1.pantry', false);
+        $this->assertNotContains('Native Garlic', collect($this->getJson('/products/search?q=garlic')->json())->where('pantry', false)->pluck('name'));
+    }
+
     public function test_discarding_an_import_removes_the_draft_its_photo_and_the_chef_it_created(): void
     {
         Storage::fake('public');
