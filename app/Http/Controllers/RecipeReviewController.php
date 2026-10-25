@@ -30,7 +30,7 @@ class RecipeReviewController extends Controller
             // A few likely items per ingredient, to pick in one tap: what is already in
             // the pantry first, kept apart from the rest of the catalog.
             'suggestions' => $draft->ingredients->mapWithKeys(fn (RecipeIngredient $ingredient) => [$ingredient->id => [
-                'pantry' => $matcher->rank($ingredient->name, 3, onlyIds: $atHome->keys()->all()),
+                'pantry' => $matcher->rank($ingredient->name, 3, onlyIds: $atHome->keys()->all(), loose: true),
                 'catalog' => $matcher->rank($ingredient->name, 3 + $atHome->count())->reject(fn (Product $product) => $atHome->has($product->id))->take(3)->values(),
             ]]),
         ]);

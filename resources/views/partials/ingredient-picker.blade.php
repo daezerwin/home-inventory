@@ -6,7 +6,7 @@
     </div>
     <label class="search-field">
         <x-icon name="search" />
-        <input type="search" data-picker-query placeholder="Search the catalog" aria-label="Search the catalog" enterkeyhint="search">
+        <input type="search" data-picker-query placeholder="Search your pantry and the catalog (empty: your whole pantry)" aria-label="Search your pantry and the catalog" enterkeyhint="search">
     </label>
     <form method="post" data-picker-form>
         @csrf

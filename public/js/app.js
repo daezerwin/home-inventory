@@ -647,9 +647,9 @@ if (picker) {
   };
 
   const search = async () => {
+    // An empty box lists the whole pantry, to pick from without typing.
     const term = query.value.trim();
     const ticket = ++lastSearch;
-    if (!term) return results.replaceChildren();
     results.setAttribute('aria-busy', 'true');
     try {
       const response = await fetch(`${picker.dataset.searchUrl}?q=${encodeURIComponent(term)}`, { headers: { Accept: 'application/json' } });
@@ -658,7 +658,7 @@ if (picker) {
       if (!products.length) {
         const empty = document.createElement('p');
         empty.className = 'picker-empty';
-        empty.textContent = 'Nothing in the catalog matches. Add it as a new item below.';
+        empty.textContent = term ? 'Nothing in the catalog matches. Add it as a new item below.' : 'Your pantry is empty. Type to search the catalog.';
         results.replaceChildren(empty);
       } else {
         // What is already in the pantry comes first, under its own heading.

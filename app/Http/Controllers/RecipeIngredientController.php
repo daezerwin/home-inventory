@@ -38,14 +38,16 @@ class RecipeIngredientController extends Controller
     public function search(Request $request, IngredientMatcher $matcher)
     {
         $query = mb_substr($request->string('q')->trim()->toString(), 0, 120);
+        $atHome = Stock::where('user_id', $request->user()->id)->pluck('quantity', 'product_id');
 
         if ($query === '') {
-            return response()->json([]);
+            // Nothing typed: the whole pantry, to pick from without searching.
+            $mine = Product::whereKey($atHome->keys())->orderBy('name')->limit(80)->get();
+            $catalog = collect();
+        } else {
+            $mine = $this->find($matcher, $query, 8, $atHome->keys()->all());
+            $catalog = $this->find($matcher, $query, 15 + $mine->count())->reject(fn (Product $product) => $atHome->has($product->id))->take(15);
         }
-
-        $atHome = Stock::where('user_id', $request->user()->id)->pluck('quantity', 'product_id');
-        $mine = $this->find($matcher, $query, 5, $atHome->keys()->all());
-        $catalog = $this->find($matcher, $query, 15 + $mine->count())->reject(fn (Product $product) => $atHome->has($product->id))->take(15);
 
         return response()->json($mine->concat($catalog)->map(fn (Product $product) => [
             'id' => $product->id,
@@ -59,14 +61,14 @@ class RecipeIngredientController extends Controller
         ])->values());
     }
 
-    /** Ranked matches, else plain name matches; only among $onlyIds when given. */
+    /** Ranked matches (loosely within a pantry), else plain name matches; only among $onlyIds when given. */
     private function find(IngredientMatcher $matcher, string $query, int $limit, ?array $onlyIds = null): Collection
     {
         if ($onlyIds === []) {
             return collect();
         }
 
-        $products = $matcher->rank($query, $limit, onlyIds: $onlyIds);
+        $products = $matcher->rank($query, $limit, onlyIds: $onlyIds, loose: true);
 
         if ($products->isEmpty()) {
             $term = '%'.addcslashes($query, '%_\\').'%';

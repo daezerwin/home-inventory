@@ -112,12 +112,17 @@ class IngredientMatcher
      * Catalog products for an ingredient or search term, best first; only
      * among $onlyIds when given.
      *
+     * $loose is for a short list such as a pantry: sharing any word is enough
+     * ("Minola Cooking Oil" for "extra virgin olive oil", "Turmeric Powder" for
+     * "fresh turmeric root"), still ranked below closer matches.
+     *
      * @param  list<int>|null  $onlyIds
      * @return Collection<int, Product>
      */
-    public function rank(string $query, int $limit = 20, float $minimum = 0, ?array $onlyIds = null): Collection
+    public function rank(string $query, int $limit = 20, float $minimum = 0, ?array $onlyIds = null, bool $loose = false): Collection
     {
         $scored = collect();
+        $loose = $loose && $onlyIds !== null;
 
         if ($onlyIds === []) {
             return $scored;
@@ -130,15 +135,17 @@ class IngredientMatcher
             $candidates = Product::query()
                 ->when($onlyIds !== null, fn ($products) => $products->whereKey($onlyIds))
                 ->whereNotIn('category', self::NON_FOOD_GROUPS)
-                ->where('name', 'like', '%'.addcslashes($root, '%_\\').'%')
+                // Loosely, any word may match, so the whole (short) list is scored.
+                ->when(! $loose, fn ($products) => $products->where('name', 'like', '%'.addcslashes($root, '%_\\').'%'))
                 ->orderByRaw('length(name)')
                 ->limit(600)
                 ->get();
 
             foreach ($candidates as $product) {
-                $score = $this->score($words, $product);
+                $score = $this->score($words, $product, $loose);
 
-                if ($score !== null && $score >= $minimum && $score > ($scored[$product->id]['score'] ?? -INF)) {
+                // $minimum is for strict matches; loose ones only need to share a word.
+                if ($score !== null && ($loose || $score >= $minimum) && $score > ($scored[$product->id]['score'] ?? -INF)) {
                     $scored[$product->id] = ['product' => $product, 'score' => $score];
                 }
             }
@@ -151,18 +158,19 @@ class IngredientMatcher
             ->values();
     }
 
-    private function score(array $words, Product $product): ?float
+    private function score(array $words, Product $product, bool $loose = false): ?float
     {
         $productWords = $this->tokens($product->name);
+        $matched = count(array_intersect($words, $productWords));
+        $headMatch = in_array(end($words), $productWords, true);
 
-        if (! $productWords || ! in_array(end($words), $productWords, true)) {
+        if (! $matched || (! $headMatch && ! $loose)) {
             return null;
         }
 
-        $matched = count(array_intersect($words, $productWords));
         $coverage = $matched / count($words);
 
-        if ($coverage < 0.5) {
+        if ($coverage < 0.5 && ! $loose) {
             return null;
         }
 
@@ -174,7 +182,9 @@ class IngredientMatcher
             + (self::GROUP_WEIGHTS[$product->category] ?? 0)
             + (array_intersect($words, $typeWords) ? 1.5 : 0)
             // "Eggplant Sauce" is a sauce: penalise products whose main noun isn't in the ingredient.
-            - (in_array(end($productWords), $words, true) ? 0 : 3);
+            - (in_array(end($productWords), $words, true) ? 0 : 3)
+            // A loose match that misses the ingredient's own main noun ranks last.
+            - ($headMatch ? 0 : 4);
     }
 
     /** @return list<list<string>> the ingredient's words, plus synonym spellings */

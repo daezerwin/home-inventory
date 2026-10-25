@@ -197,6 +197,9 @@ class RecipeTest extends TestCase
         $user = User::factory()->create();
         $native = Product::create(['sku' => 'NG', 'category' => 'Fresh Produce', 'name' => 'Native Garlic', 'size' => '250g', 'price' => 120]);
         Stock::create(['user_id' => $user->id, 'product_id' => $native->id, 'quantity' => 3]);
+        // Only loosely like "fresh turmeric root": suggested from the pantry, never picked by itself.
+        $turmeric = Product::create(['sku' => 'TP', 'category' => 'Pantry', 'name' => 'Turmeric Powder', 'price' => 45]);
+        Stock::create(['user_id' => $user->id, 'product_id' => $turmeric->id, 'quantity' => 1]);
         // Someone else's pantry is not mine.
         $peeled = Product::create(['sku' => 'PG', 'category' => 'Fresh Produce', 'name' => 'Peeled Garlic', 'price' => 39]);
         Stock::create(['user_id' => User::factory()->create()->id, 'product_id' => $peeled->id, 'quantity' => 1]);
@@ -208,11 +211,13 @@ class RecipeTest extends TestCase
         $matches = $draft->ingredients->mapWithKeys(fn ($i) => [$i->name => $i->skip ? 'skip' : $i->product?->name])->all();
         $this->assertSame('Native Garlic', $matches['Garlic']);
         $this->assertSame('SS Eggplant', $matches['Chinese eggplant']);
+        $this->assertNull($matches['Fresh turmeric root']);
 
         $page = $this->get(route('recipes.review', $draft))->assertOk();
         $page->assertSeeInOrder(['5 cloves garlic, chopped', 'In your pantry', 'Native Garlic', 'At home: 3', 'Or from the catalog', 'Global Garlic'])
             ->assertSee('Using Native Garlic from your pantry (3 at home)')
-            ->assertSee('1 from your pantry');
+            ->assertSee('1 from your pantry')
+            ->assertSeeInOrder(['1 thumb fresh turmeric root', 'In your pantry', 'Turmeric Powder', 'At home: 1']);
 
         // Search too: my pantry first, marked, then the catalog.
         $this->getJson('/products/search?q=garlic')->assertOk()
@@ -221,6 +226,13 @@ class RecipeTest extends TestCase
             ->assertJsonPath('0.atHome', 3)
             ->assertJsonPath('1.pantry', false);
         $this->assertNotContains('Native Garlic', collect($this->getJson('/products/search?q=garlic')->json())->where('pantry', false)->pluck('name'));
+        $this->getJson('/products/search?q=turmeric+root')->assertJsonPath('0.name', 'Turmeric Powder')->assertJsonPath('0.pantry', true);
+
+        // Nothing typed: the whole pantry to pick from.
+        $this->assertSame(
+            [['Native Garlic', true], ['Turmeric Powder', true]],
+            collect($this->getJson('/products/search?q=')->json())->map(fn ($p) => [$p['name'], $p['pantry']])->all(),
+        );
     }
 
     public function test_discarding_an_import_removes_the_draft_its_photo_and_the_chef_it_created(): void
