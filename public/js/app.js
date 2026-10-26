@@ -128,6 +128,20 @@ $$('[data-confirm]').forEach(form => form.addEventListener('submit', event => {
   });
 }));
 
+/* ---------- Use ingredients: how many of each went into the dish ---------- */
+
+$$('[data-use-stepper]').forEach(stepper => {
+  const input = $('input', stepper);
+  const toggle = stepper.closest('.use-row')?.querySelector('[data-use-toggle]');
+  $$('[data-step]', stepper).forEach(button => button.addEventListener('click', () => {
+    const value = (Number(input.value) || 1) + Number(button.dataset.step);
+    input.value = Math.min(Number(input.max) || value, Math.max(Number(input.min) || 1, value));
+    // Changing the amount means it was used.
+    if (toggle) toggle.checked = true;
+  }));
+  input.addEventListener('input', () => { if (toggle) toggle.checked = true; });
+});
+
 /* ---------- Toasts ---------- */
 
 // toast(message), toast(message, true) for an error, or toast(message, 'info') for a heads-up.

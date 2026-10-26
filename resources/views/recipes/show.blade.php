@@ -19,6 +19,11 @@
         return compact('ingredient', 'stock', 'status');
     });
     $count = fn (string ...$statuses) => $rows->whereIn('status', $statuses)->count();
+    // "Use ingredients": the recipe's products that are in the pantry, one row each.
+    $usable = $rows->filter(fn ($row) => $row['stock'] && ! $row['ingredient']->skip)
+        ->groupBy(fn ($row) => $row['ingredient']->product_id)
+        ->map(fn ($group) => ['stock' => $group->first()['stock'], 'product' => $group->first()['ingredient']->product, 'lines' => $group->pluck('ingredient.line')]);
+    $notInPantry = $rows->filter(fn ($row) => ! $row['stock'] && ! $row['ingredient']->skip)->count();
     $toBuy = $count('new', 'out', 'missing');
     $steps = collect($recipe->instructions ?? []);
     $stepNumber = 0;
@@ -61,6 +66,7 @@
                     @csrf
                     <button class="button primary"><x-icon name="cart" />Stock ingredients</button>
                 </form>
+                <button type="button" class="button secondary" data-dialog="use-ingredients"><x-icon name="box" />Use ingredients</button>
                 <a class="button secondary" href="{{ route('recipes.edit', $recipe) }}"><x-icon name="edit" />Edit</a>
                 @if ($canDelete)
                     <form method="post" action="{{ route('recipes.destroy', $recipe) }}" data-confirm="Delete {{ $recipe->title }}? Pantry items and catalog products it added are kept." data-confirm-button="Delete recipe">
@@ -135,8 +141,11 @@
 
             <form method="post" action="{{ route('recipes.stock', $recipe) }}" class="stock-footer">
                 @csrf
-                <button class="button primary"><x-icon name="cart" />Stock ingredients</button>
-                <p class="muted">Adds anything missing to My pantry (and to the catalog if it isn't there yet), and puts every ingredient you have none of on your shopping list.</p>
+                <div class="heading-actions">
+                    <button class="button primary"><x-icon name="cart" />Stock ingredients</button>
+                    <button type="button" class="button secondary" data-dialog="use-ingredients"><x-icon name="box" />Use ingredients</button>
+                </div>
+                <p class="muted">Stock ingredients adds anything missing to My pantry (and to the catalog if it isn't there yet), and puts every ingredient you have none of on your shopping list. Use ingredients takes what you cooked with out of My pantry.</p>
             </form>
         </section>
 
@@ -163,4 +172,71 @@
 </article>
 
 @include('partials.ingredient-picker')
+
+{{-- "Use ingredients": what went into the dish comes out of My pantry. Reopens with the error if nothing was ticked. --}}
+<dialog id="use-ingredients" class="use-dialog" aria-labelledby="use-title" @if ($errors->has('items')) data-open @endif>
+    <form method="post" action="{{ route('recipes.use', $recipe) }}">
+        @csrf
+        <div class="dialog-heading">
+            <h2 id="use-title">What did you use?</h2>
+            <button type="button" class="icon-button" data-close-dialog aria-label="Close"><x-icon name="close" /></button>
+        </div>
+        <p class="muted use-intro">Tick what went into {{ $recipe->title }} and how many. It comes out of My pantry.</p>
+        @error('items')
+            <div class="notice error" role="alert"><div><p>{{ $message }}</p></div></div>
+        @enderror
+
+        @if ($usable->isEmpty())
+            <div class="use-empty">
+                <x-icon name="box" />
+                <p>None of these ingredients are in your pantry yet. <b>Stock ingredients</b> adds them; then you can use them here.</p>
+            </div>
+        @else
+            @if ($usable->every(fn ($row) => ! $row['stock']->quantity))
+                <div class="use-empty">
+                    <x-icon name="box" />
+                    <p>You have none of these at home right now, so there's nothing to take out. <b>Stock ingredients</b> puts them on your shopping list.</p>
+                </div>
+            @endif
+            <ul class="use-list">
+                @foreach ($usable as $productId => ['stock' => $stock, 'product' => $product, 'lines' => $lines])
+                    @php($atHome = $stock->quantity)
+                    <li class="use-row {{ $atHome ? '' : 'is-empty' }}">
+                        <label class="use-pick">
+                            <input type="checkbox" name="items[{{ $productId }}][use]" value="1" data-use-toggle @checked($atHome > 0) @disabled(! $atHome)>
+                            <span class="thumb">
+                                @if ($product->image)
+                                    <img src="{{ $product->image }}" alt="" loading="lazy" decoding="async">
+                                @else
+                                    <x-icon name="box" />
+                                @endif
+                            </span>
+                            <span class="use-text">
+                                <b>{{ $product->name }}</b>
+                                <small>{{ $lines->implode('; ') }}</small>
+                                <small class="use-home">{{ $atHome ? "At home: {$atHome}" : 'None at home' }}</small>
+                            </span>
+                        </label>
+                        @if ($atHome)
+                            <div class="use-stepper" data-use-stepper>
+                                <button type="button" class="step" data-step="-1" aria-label="One fewer {{ $product->name }}">−</button>
+                                <input type="number" name="items[{{ $productId }}][quantity]" value="1" min="1" max="{{ $atHome }}" inputmode="numeric" aria-label="How many {{ $product->name }}">
+                                <button type="button" class="step" data-step="1" aria-label="One more {{ $product->name }}">+</button>
+                            </div>
+                        @endif
+                    </li>
+                @endforeach
+            </ul>
+            @if ($notInPantry)
+                <p class="muted use-note">{{ $notInPantry }} other {{ str('ingredient')->plural($notInPantry) }} {{ $notInPantry === 1 ? "isn't" : "aren't" }} in your pantry, so there's nothing to take out for {{ $notInPantry === 1 ? 'it' : 'them' }}.</p>
+            @endif
+            <label class="checkbox-label use-list-empty"><input type="checkbox" name="list_empty" value="1" checked>Put anything that runs out on my shopping list</label>
+        @endif
+
+        <div class="dialog-bottom">
+            <button type="button" class="button secondary" data-close-dialog>Cancel</button>
+            <button class="button primary" @disabled($usable->isEmpty() || $usable->every(fn ($row) => ! $row['stock']->quantity))><x-icon name="check" />Update my pantry</button>
+        </div>
+    </form>
+</dialog>
 @endsection

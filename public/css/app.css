@@ -2483,6 +2483,122 @@ a.stat:hover {
     color: #a3979b;
 }
 
+/* ---------- Use ingredients dialog ---------- */
+dialog.use-dialog {
+    max-width: 560px;
+}
+.use-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 52vh;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+}
+.use-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px 8px 8px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+}
+.use-row:has([data-use-toggle]:checked) {
+    border-color: #dcc3cb;
+    background: #fdf8f9;
+}
+.use-row.is-empty {
+    opacity: 0.6;
+}
+.use-pick {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    cursor: pointer;
+}
+.use-pick input {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    accent-color: var(--maroon);
+}
+.use-text {
+    min-width: 0;
+}
+.use-text b {
+    display: block;
+    font-size: 13px;
+}
+.use-text small {
+    display: block;
+    overflow: hidden;
+    font-size: 11px;
+    color: #9a8f93;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.use-text .use-home {
+    color: #5f7d51;
+    font-weight: 600;
+}
+.use-stepper {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 6px;
+}
+.use-stepper input {
+    width: 44px;
+    height: 30px;
+    border: 1px solid #e4dade;
+    border-radius: 7px;
+    text-align: center;
+    font: 600 14px "DM Sans", sans-serif;
+    -moz-appearance: textfield;
+}
+.use-stepper input::-webkit-inner-spin-button,
+.use-stepper input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.use-note {
+    margin-top: 12px;
+    font-size: 12px;
+}
+.use-list-empty {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    font-size: 13px;
+    color: #5f5459;
+}
+.use-list-empty input {
+    accent-color: var(--maroon);
+}
+.use-intro {
+    margin: 10px 0 16px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+.use-empty + .use-list {
+    margin-top: 12px;
+}
+.use-empty {
+    display: flex;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 10px;
+    background: #faf6f7;
+    font-size: 13px;
+    color: #75656e;
+}
+
 /* ---------- Ingredient picker ---------- */
 dialog.picker {
     max-width: 560px;

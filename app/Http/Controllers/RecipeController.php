@@ -10,7 +10,10 @@ use App\Services\RecipeImporter;
 use App\Services\RecipeImportException;
 use App\Services\RecipeStocker;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class RecipeController extends Controller
 {
@@ -146,6 +149,69 @@ class RecipeController extends Controller
         $counts = $stocker->stock($recipe, $request->user());
 
         return back()->with('success', RecipeStocker::summary($counts));
+    }
+
+    /**
+     * "Use ingredients": takes what went into the recipe out of the person's
+     * pantry, never below zero. What runs out can go on the shopping list.
+     */
+    public function useIngredients(Request $request, Recipe $recipe)
+    {
+        $data = $request->validate([
+            'items' => 'nullable|array',
+            'items.*.use' => 'nullable|boolean',
+            'items.*.quantity' => 'nullable|integer|min:1|max:1000',
+            'list_empty' => 'nullable|boolean',
+        ]);
+        $userId = $request->user()->id;
+
+        // Only what was ticked, of this recipe's ingredients, that is in this person's pantry.
+        $taking = collect($data['items'] ?? [])
+            ->filter(fn (array $item) => ! empty($item['use']))
+            ->map(fn (array $item) => (int) ($item['quantity'] ?? 1));
+        $stocks = Stock::with('product')
+            ->where('user_id', $userId)
+            ->where('quantity', '>', 0)
+            ->whereIn('product_id', $taking->keys()->intersect($recipe->ingredients()->whereNotNull('product_id')->pluck('product_id')))
+            ->get();
+
+        if ($stocks->isEmpty()) {
+            throw ValidationException::withMessages(['items' => 'Tick at least one ingredient you used.']);
+        }
+
+        $used = [];
+        $listed = 0;
+        $ranOut = 0;
+
+        DB::transaction(function () use ($stocks, $taking, $userId, $request, &$used, &$listed, &$ranOut) {
+            foreach ($stocks as $stock) {
+                $take = min($stock->quantity, $taking[$stock->product_id]);
+                $stock->decrement('quantity', $take);
+                $used[] = "{$take} {$stock->product->name}";
+
+                if ($stock->quantity > 0) {
+                    continue;
+                }
+
+                $ranOut++;
+
+                if ($request->boolean('list_empty')) {
+                    $item = CartItem::firstOrCreate(
+                        ['user_id' => $userId, 'product_id' => $stock->product_id],
+                        ['quantity' => max(1, $stock->target_quantity)],
+                    );
+                    $listed += (int) $item->wasRecentlyCreated;
+                }
+            }
+        });
+
+        $message = 'Took '.Arr::join($used, ', ', ' and ').' out of your pantry.';
+        if ($ranOut) {
+            $message .= $ranOut === 1 ? ' One ran out' : " {$ranOut} ran out";
+            $message .= $listed ? ($listed === $ranOut ? ' and went on your shopping list.' : "; {$listed} went on your shopping list.") : '.';
+        }
+
+        return back()->with('success', $message);
     }
 
     private function canDelete(Request $request, Recipe $recipe): bool

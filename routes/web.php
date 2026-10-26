@@ -53,6 +53,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/recipes/{recipe:slug}', [RecipeController::class, 'update'])->name('recipes.update');
     Route::delete('/recipes/{recipe:slug}', [RecipeController::class, 'destroy'])->name('recipes.destroy');
     Route::post('/recipes/{recipe:slug}/stock', [RecipeController::class, 'stock'])->name('recipes.stock');
+    Route::post('/recipes/{recipe:slug}/use', [RecipeController::class, 'useIngredients'])->name('recipes.use');
     Route::patch('/recipe-ingredients/{ingredient}', [RecipeIngredientController::class, 'update'])->name('recipe-ingredients.update');
     Route::get('/products/search', [RecipeIngredientController::class, 'search'])->name('products.search');
 

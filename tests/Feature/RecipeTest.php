@@ -235,6 +235,67 @@ class RecipeTest extends TestCase
         );
     }
 
+    public function test_used_ingredients_come_out_of_my_pantry_and_what_runs_out_goes_on_the_list(): void
+    {
+        $this->catalog();
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        [$eggplant, $garlic, $soy, $eggs] = collect(['SS Eggplant', 'Global Garlic', 'Select Soy Sauce', 'Juan Fresh Eggs'])
+            ->map(fn ($name) => Product::where('name', $name)->firstOrFail())->all();
+        Stock::create(['user_id' => $user->id, 'product_id' => $eggplant->id, 'quantity' => 3, 'target_quantity' => 2]);
+        Stock::create(['user_id' => $user->id, 'product_id' => $garlic->id, 'quantity' => 1, 'target_quantity' => 2]);
+        Stock::create(['user_id' => $user->id, 'product_id' => $soy->id, 'quantity' => 0]);
+        Stock::create(['user_id' => $user->id, 'product_id' => $eggs->id, 'quantity' => 5]);
+        Stock::create(['user_id' => $other->id, 'product_id' => $eggplant->id, 'quantity' => 4]);
+
+        $recipe = Recipe::create(['title' => 'Adobo']);
+        $recipe->ingredients()->createMany([
+            ['position' => 0, 'line' => '3 pieces eggplant', 'name' => 'Eggplant', 'product_id' => $eggplant->id],
+            ['position' => 1, 'line' => '5 cloves garlic', 'name' => 'Garlic', 'product_id' => $garlic->id],
+            ['position' => 2, 'line' => '1 more clove garlic', 'name' => 'Garlic', 'product_id' => $garlic->id],
+            ['position' => 3, 'line' => '3 tbsp soy sauce', 'name' => 'Soy sauce', 'product_id' => $soy->id],
+            ['position' => 4, 'line' => '1 thumb turmeric', 'name' => 'Turmeric'],
+            ['position' => 5, 'line' => '1/4 cup water', 'name' => 'Water', 'skip' => true],
+        ]);
+
+        // The dialog lists each pantry product once, with what is at home.
+        $this->actingAs($user)->get(route('recipes.show', $recipe))->assertOk()
+            ->assertSee('Use ingredients')
+            ->assertSeeInOrder(['What did you use?', 'SS Eggplant', 'At home: 3', 'Global Garlic', '5 cloves garlic; 1 more clove garlic', 'At home: 1', 'Select Soy Sauce', 'None at home'])
+            ->assertSee("1 other ingredient isn't in your pantry");
+
+        // Never below zero; not in this recipe, or none at home: untouched.
+        $this->post(route('recipes.use', $recipe), [
+            'items' => [
+                $eggplant->id => ['use' => '1', 'quantity' => '2'],
+                $garlic->id => ['use' => '1', 'quantity' => '5'],
+                $soy->id => ['use' => '1', 'quantity' => '1'],
+                $eggs->id => ['use' => '1', 'quantity' => '1'],
+            ],
+            'list_empty' => '1',
+        ])->assertRedirect()->assertSessionHas('success', 'Took 2 SS Eggplant and 1 Global Garlic out of your pantry. One ran out and went on your shopping list.');
+
+        $quantity = fn (User $person, Product $product) => Stock::where('user_id', $person->id)->where('product_id', $product->id)->value('quantity');
+        $this->assertSame([1, 0, 0, 5, 4], [$quantity($user, $eggplant), $quantity($user, $garlic), $quantity($user, $soy), $quantity($user, $eggs), $quantity($other, $eggplant)]);
+        $this->assertSame(2, CartItem::where('user_id', $user->id)->where('product_id', $garlic->id)->value('quantity'));
+
+        // Unticked rows don't count: nothing ticked is an error.
+        $this->from(route('recipes.show', $recipe))->post(route('recipes.use', $recipe), ['items' => [$eggplant->id => ['quantity' => '1']]])
+            ->assertSessionHasErrors(['items' => 'Tick at least one ingredient you used.']);
+        $this->assertSame(1, $quantity($user, $eggplant));
+    }
+
+    public function test_using_nothing_reopens_the_dialog_with_the_error(): void
+    {
+        $recipe = Recipe::create(['title' => 'Adobo']);
+        $this->actingAs(User::factory()->create());
+
+        $this->from(route('recipes.show', $recipe))->post(route('recipes.use', $recipe), [])->assertRedirect(route('recipes.show', $recipe));
+
+        $page = $this->get(route('recipes.show', $recipe))->assertSee('Tick at least one ingredient you used.');
+        $this->assertMatchesRegularExpression('/<dialog id="use-ingredients"[^>]*data-open/', $page->getContent());
+    }
+
     public function test_discarding_an_import_removes_the_draft_its_photo_and_the_chef_it_created(): void
     {
         Storage::fake('public');
