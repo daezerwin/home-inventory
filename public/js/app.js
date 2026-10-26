@@ -413,6 +413,43 @@ addEventListener('online', flushOutbox);
 addEventListener('offline', paintOutbox);
 flushOutbox();
 
+/* ---------- Install as an app ---------- */
+
+// Chrome, Edge and Android offer an install prompt; iPhone and iPad install from Safari's Share menu.
+let installPrompt = null;
+const installButtons = $$('[data-install]');
+const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const appleMobile = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const showInstall = show => installButtons.forEach(button => button.hidden = !show);
+addEventListener('beforeinstallprompt', event => {
+  event.preventDefault();
+  installPrompt = event;
+  showInstall(true);
+});
+addEventListener('appinstalled', () => {
+  installPrompt = null;
+  showInstall(false);
+  toast('Home Pantry is installed. Open it from your home screen or apps.');
+});
+if (appleMobile && !installed) showInstall(true);
+installButtons.forEach(button => button.addEventListener('click', async () => {
+  if (installPrompt) {
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    installPrompt = null;
+    if (outcome === 'accepted') showInstall(false);
+    return;
+  }
+  const steps = 'In Safari, tap Share (the square with an arrow), then Add to Home Screen.';
+  if (!swal) return alert(steps);
+  swal.fire({
+    icon: 'info',
+    title: 'Add Home Pantry to your Home Screen',
+    html: '<p>In <b>Safari</b>, tap <b>Share</b> (the square with an arrow), then <b>Add to Home Screen</b>.</p><p>It opens like an app, starting on your shopping list.</p>',
+    confirmButtonText: 'Got it',
+  });
+}));
+
 // The offline copy of the shopping list (sw.js), for opening it in a store with no signal.
 if ('serviceWorker' in navigator && window.isSecureContext) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});

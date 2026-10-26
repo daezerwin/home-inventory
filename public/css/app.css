@@ -207,6 +207,20 @@ h3 {
     font-weight: 550;
     font-size: 13px;
 }
+button.nav-link {
+    width: 100%;
+    border: 0;
+    background: none;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.nav-link[hidden] {
+    display: none;
+}
+.install-app {
+    color: var(--maroon);
+}
 .nav-link.active {
     background: var(--rose);
     color: var(--maroon);

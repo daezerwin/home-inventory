@@ -1,11 +1,17 @@
-// Home Pantry offline copy: the shopping list opens without a connection.
+// Home Pantry offline copy: the shopping list opens without a connection, and
+// any other page offline shows offline.html pointing to it.
 // Network first, always: the saved copy is used only when the network fails,
 // so a working connection never shows anything stale. Ticks made offline wait
 // in app.js ("Offline ticks") and sync when the connection is back.
 
 const CACHE = 'pantry-offline';
+// Saved up front, so they work offline even before the list was ever opened.
+const PRECACHE = ['/offline.html', '/icon.svg', '/icon-192.png', '/manifest.webmanifest'];
 
-self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('install', event => {
+  self.skipWaiting();
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(PRECACHE)).catch(() => {}));
+});
 self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
 
 const isShoppingList = url => url.pathname === '/shopping-list';
@@ -22,6 +28,12 @@ self.addEventListener('fetch', event => {
   if (url.origin !== self.location.origin) return;
 
   const page = request.mode === 'navigate' && isShoppingList(url);
+
+  // Other pages always come from the network; offline, a small page points to the list.
+  if (request.mode === 'navigate' && !page) {
+    event.respondWith(fetch(request).catch(async () => (await caches.match('/offline.html')) || Response.error()));
+    return;
+  }
   if (!page && !isListAsset(url, request)) return;
 
   event.respondWith(

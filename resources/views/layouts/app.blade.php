@@ -5,10 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#7c263e">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Pantry">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="application-name" content="Home Pantry">
     <title>@yield('title', 'Home Pantry') · Home Pantry</title>
     <link rel="icon" href="{{ asset('icon.svg') }}" type="image/svg+xml">
+    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="32x32">
     <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}">
     <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
     <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ filemtime(public_path('css/app.css')) }}">
@@ -60,6 +64,8 @@
     </nav>
 
     <div class="sidebar-bottom">
+        {{-- Shown by app.js when the browser can install the app (or on iPhone/iPad, with how-to). --}}
+        <button type="button" class="nav-link install-app" data-install hidden><x-icon name="download" />Install the app</button>
         @if (auth()->user()->is_admin)
             <a class="nav-link {{ request()->routeIs('admin.*') ? 'active' : '' }}" href="{{ route('admin.index') }}"><x-icon name="settings" />Manage inventory</a>
         @endif

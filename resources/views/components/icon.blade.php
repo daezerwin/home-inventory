@@ -9,6 +9,7 @@
 @case('check')<path d="m5 12 4 4L19 6"/>@break
 @case('arrow')<path d="M5 12h14m-6-6 6 6-6 6"/>@break
 @case('upload')<path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"/>@break
+@case('download')<path d="M12 3v13m-5-5 5 5 5-5M4 16v5h16v-5"/>@break
 @case('settings')<path d="m12 3 2 3 4-1 1 4 3 3-3 3-1 4-4-1-2 3-2-3-4 1-1-4-3-3 3-3 1-4 4 1Z"/><circle cx="12" cy="12" r="3"/>@break
 @case('leaf')<path d="M20 3C8 2 1 10 6 17s16 1 14-14ZM5 21 16 9"/>@break
 @case('alert')<path d="m12 3 10 18H2ZM12 9v5m0 3v.1"/>@break

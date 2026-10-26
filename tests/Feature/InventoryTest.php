@@ -434,6 +434,28 @@ class InventoryTest extends TestCase
         $this->assertNull($ingredient->fresh()->product_id);
     }
 
+    public function test_the_app_manifest_points_at_real_files_of_the_sizes_it_claims(): void
+    {
+        $manifest = json_decode(file_get_contents(public_path('manifest.webmanifest')), true, flags: JSON_THROW_ON_ERROR);
+
+        // Kept as it was first installed, so existing installs update instead of duplicating.
+        $this->assertSame('/shopping-list', $manifest['id']);
+        $this->assertContains('maskable', array_column($manifest['icons'], 'purpose'));
+
+        foreach ([...$manifest['icons'], ...$manifest['screenshots']] as $file) {
+            $path = public_path(ltrim($file['src'], '/'));
+            $this->assertFileExists($path);
+            if ($file['sizes'] !== 'any') {
+                [$width, $height] = getimagesize($path);
+                $this->assertSame($file['sizes'], "{$width}x{$height}", $file['src']);
+            }
+        }
+
+        $this->assertFileExists(public_path('offline.html'));
+        $this->assertStringContainsString("'/offline.html'", file_get_contents(public_path('sw.js')));
+        $this->actingAs(User::factory()->create())->get('/')->assertSee('data-install', false)->assertSee('manifest.webmanifest');
+    }
+
     public function test_product_deletion_cascades_stock_and_cart_records(): void
     {
         $user = User::factory()->create();
