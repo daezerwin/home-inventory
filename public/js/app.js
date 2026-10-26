@@ -415,24 +415,45 @@ flushOutbox();
 
 /* ---------- Install as an app ---------- */
 
-// Chrome, Edge and Android offer an install prompt; iPhone and iPad install from Safari's Share menu.
+// Chrome, Edge and Android hand over an install prompt; everywhere else the button
+// says how to install in that browser, or why it can't be installed here.
 let installPrompt = null;
 const installButtons = $$('[data-install]');
 const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-const appleMobile = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const ua = navigator.userAgent;
+const appleMobile = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const showInstall = show => installButtons.forEach(button => button.hidden = !show);
+showInstall(!installed);
 addEventListener('beforeinstallprompt', event => {
   event.preventDefault();
   installPrompt = event;
-  showInstall(true);
 });
 addEventListener('appinstalled', () => {
   installPrompt = null;
   showInstall(false);
   toast('Home Pantry is installed. Open it from your home screen or apps.');
 });
-if (appleMobile && !installed) showInstall(true);
+
+function installHelp() {
+  if (appleMobile) {
+    return ['Add Home Pantry to your Home Screen', '<p>In <b>Safari</b>, tap <b>Share</b> (the square with an arrow), then <b>Add to Home Screen</b>.</p><p>It opens like an app, starting on your shopping list.</p>'];
+  }
+  if (!window.isSecureContext) {
+    return ['Installing needs https', `<p>Browsers only install web apps from a secure address. This one is <b>${location.origin.replace(/[<>&"]/g, '')}</b>, plain http.</p><p>Open Home Pantry through an <b>https://</b> address instead (a reverse proxy or Tailscale on the server), then tap Install again.</p>`];
+  }
+  if (/firefox/i.test(ua)) {
+    return /android/i.test(ua)
+      ? ['Install from the Firefox menu', '<p>Tap the <b>⋮</b> menu, then <b>Install</b> (or <b>Add to Home screen</b>).</p>']
+      : ['Firefox on a computer can’t install apps', '<p>Open Home Pantry in <b>Chrome</b> or <b>Edge</b> and tap Install there.</p>'];
+  }
+  if (/safari/i.test(ua) && !/chrome|chromium|edg/i.test(ua)) {
+    return ['Add Home Pantry to your Dock', '<p>In Safari’s menu bar, choose <b>File</b> → <b>Add to Dock</b>.</p>'];
+  }
+  return ['Install from the browser', '<p>Look for the <b>install</b> icon at the right end of the address bar, or open the browser menu and choose <b>Install Home Pantry</b> (on Android: <b>⋮</b> → <b>Install app</b>).</p><p>If it says <b>Open in app</b>, it’s already installed.</p>'];
+}
+
 installButtons.forEach(button => button.addEventListener('click', async () => {
+  setMenu(false); // the button lives in the menu drawer; the prompt or the steps replace it
   if (installPrompt) {
     installPrompt.prompt();
     const { outcome } = await installPrompt.userChoice;
@@ -440,14 +461,9 @@ installButtons.forEach(button => button.addEventListener('click', async () => {
     if (outcome === 'accepted') showInstall(false);
     return;
   }
-  const steps = 'In Safari, tap Share (the square with an arrow), then Add to Home Screen.';
-  if (!swal) return alert(steps);
-  swal.fire({
-    icon: 'info',
-    title: 'Add Home Pantry to your Home Screen',
-    html: '<p>In <b>Safari</b>, tap <b>Share</b> (the square with an arrow), then <b>Add to Home Screen</b>.</p><p>It opens like an app, starting on your shopping list.</p>',
-    confirmButtonText: 'Got it',
-  });
+  const [title, html] = installHelp();
+  if (!swal) return alert(`${title}\n\n${html.replace(/<[^>]+>/g, '')}`);
+  swal.fire({ icon: 'info', title, html, confirmButtonText: 'Got it' });
 }));
 
 // The offline copy of the shopping list (sw.js), for opening it in a store with no signal.

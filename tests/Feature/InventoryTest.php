@@ -456,6 +456,20 @@ class InventoryTest extends TestCase
         $this->actingAs(User::factory()->create())->get('/')->assertSee('data-install', false)->assertSee('manifest.webmanifest');
     }
 
+    public function test_an_https_reverse_proxy_on_the_home_network_is_believed_but_not_strangers(): void
+    {
+        $forwarded = ['X-Forwarded-Proto' => 'https', 'X-Forwarded-Host' => 'pantry.example.ts.net', 'X-Forwarded-Port' => '443'];
+
+        // Straight from the internet, the headers change nothing. (First: the test client
+        // aims each request at the host the previous one generated.)
+        $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.9'])->withHeaders($forwarded)->get('/login')
+            ->assertDontSee('pantry.example.ts.net', false);
+
+        // Nginx Proxy Manager or Tailscale serve in front, on a Docker or LAN address: https links.
+        $this->withServerVariables(['REMOTE_ADDR' => '172.18.0.2'])->withHeaders($forwarded)->get('/login')
+            ->assertSee('https://pantry.example.ts.net/css/app.css', false);
+    }
+
     public function test_product_deletion_cascades_stock_and_cart_records(): void
     {
         $user = User::factory()->create();

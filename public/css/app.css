@@ -1963,6 +1963,10 @@ a.stat:hover {
     border-color: #ecc9a6;
     color: #d9895f;
 }
+.swal-pantry .swal2-icon.swal2-info {
+    border-color: #e7c8d1;
+    color: var(--maroon);
+}
 .swal-pantry .swal2-icon.swal2-error {
     border-color: #e7b8c2;
 }
